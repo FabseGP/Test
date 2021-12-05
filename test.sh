@@ -19,35 +19,35 @@
   ADDITIONAL_packages=""
 
   # Drives and partitions + encryption + mountpoint
-  DRIVE_path=""
-  DRIVE_path_boot=""
-  DRIVE_path_swap=""
-  DRIVE_path_primary=""
-  BOOT_size=""
-  BOOT_label=""
-  SWAP_size=""
-  SWAP_size_allocated=""
-  SWAP_label=""
-  PRIMARY_label=""
+  DRIVE_path="sda"
+  DRIVE_path_boot="/dev/sda1"
+  DRIVE_path_swap="/dev/sda2"
+  DRIVE_path_primary="/dev/sda3"
+  BOOT_size="300"
+  BOOT_label="boot"
+  SWAP_size="200"
+  SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
+  SWAP_label="ram"
+  PRIMARY_label="root"
   ENCRYPTION_passwd=""
-  MOUNTPOINT=""
+  MOUNTPOINT="/mnt"
 
   # Locals
-  TIMEZONE_1=""
-  TIMEZONE_2=""
-  LANGUAGES_generate=""
-  LANGUAGE_system=""
-  KEYMAP_system=""
-  HOSTNAME_system=""
+  TIMEZONE_1="Europe"
+  TIMEZONE_2="Copenhagen"
+  LANGUAGES_generate="da_DK.UTF-8 en_GB.UTF-8"
+  LANGUAGE_system="da_DK.UTF-8"
+  KEYMAP_system="dk-latin1"
+  HOSTNAME_system="fabse"
 
   # Users
-  ROOT_passwd=""
-  USERNAME=""
-  USER_passwd=""
+  ROOT_passwd="root"
+  USERNAME="fabse"
+  USER_passwd="fabse"
 
   # Miscellaneous
   PACKAGES_additional=""
-  BOOTLOADER_label=""
+  BOOTLOADER_label="grub"
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
 
 #----------------------------------------------------------------------------------------------------------------------------------
