@@ -5,6 +5,7 @@
   # Static
   COLUMNS=$(tput cols) 
   BEGINNER_DIR=$(pwd)
+  WRONG=""
   PROCEED=""
   
   # Choices during install; either true or nothing (interpreted as false)
@@ -18,35 +19,35 @@
   ADDITIONAL_packages=""
 
   # Drives and partitions + encryption + mountpoint
-  DRIVE_path="sda"
-  DRIVE_path_boot="sda1"
-  DRIVE_path_swap="sda2"
-  DRIVE_path_primary="sda3"
-  BOOT_size="301"
-  BOOT_label="boot"
-  SWAP_size="700"
-  SWAP_size_allocated="$(("$SWAP_size"+"$BOOT_size"))"
-  SWAP_label="ram"
-  PRIMARY_label="root"
+  DRIVE_path=""
+  DRIVE_path_boot=""
+  DRIVE_path_swap=""
+  DRIVE_path_primary=""
+  BOOT_size=""
+  BOOT_label=""
+  SWAP_size=""
+  SWAP_size_allocated=""
+  SWAP_label=""
+  PRIMARY_label=""
   ENCRYPTION_passwd=""
-  MOUNTPOINT="/mnt"
+  MOUNTPOINT=""
 
   # Locals
-  TIMEZONE_1="Europe"
-  TIMEZONE_2="Copenhagen"
-  LANGUAGES_generate="da_DK.UTF-8 en_GB.UTF-8"
-  LANGUAGE_system="da_DK.UTF-8"
-  KEYMAP_system="dk-latin1"
-  HOSTNAME_system="fabse"
+  TIMEZONE_1=""
+  TIMEZONE_2=""
+  LANGUAGES_generate=""
+  LANGUAGE_system=""
+  KEYMAP_system=""
+  HOSTNAME_system=""
 
   # Users
-  ROOT_passwd="root"
-  USERNAME="fabse"
-  USER_passwd="fabse"
+  ROOT_passwd=""
+  USERNAME=""
+  USER_passwd=""
 
   # Miscellaneous
   PACKAGES_additional=""
-  BOOTLOADER_label="BOOT_GRUB"
+  BOOTLOADER_label=""
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -68,38 +69,6 @@
     "@srv"
     "@.snapshots"
     "@grub"
-  )
-
-  # Default packages to basestrap / install
-  packages=(
-    "$INIT_choice" 
-    "fcron-$INIT_choice"
-    "dhcpcd-$INIT_choice"
-    "chrony-$INIT_choice" 
-    "networkmanager-$INIT_choice"
-    "elogind-$INIT_choice"
-    "lolcat"
-    "figlet"
-    "cryptsetup"
-    "libressl"
-    "vim"
-    "base"
-    "base-devel"
-    "neovim"
-    "nano"
-    "linux-zen"
-    "zstd"
-    "linux-zen-headers"
-    "grub-btrfs"
-    "os-prober"
-    "efibootmgr"
-    "btrfs-progs"
-    "git"
-    "bc"
-    "lz4"
-    "realtimes-privileges"
-    "mkinitcpio"
-    "artix-archlinux-support"
   )
 
   # Size of tmpfs (/tmp) 
@@ -263,7 +232,9 @@
 
    # Installs packages required by script
    REQUIRED_PACKAGES() {
-     pacman -S --noconfirm lolcat figlet parted --needed
+     if [[ -z "$(pacman -Qs {lolcat,figlet,parted})" ]]; then
+       pacman -S --noconfirm --needed lolcat figlet parted
+     fi
    }
 
   # If /mnt is mounted (perhaps due to exiting the script before it finished),
@@ -278,11 +249,13 @@
   # Installs support for arch-repositories and updates all GPG-keys.
   # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
   PACMAN_REPOSITORIES() {
-    pacman -S --noconfirm archlinux-keyring artix-keyring artix-archlinux-support --needed
-    pacman-key --init
-    pacman-key --populate archlinux artix
-    cp pacman.conf /etc/pacman.conf
-    pacman -Syy
+    if [[ -z "$(pacman -Qs {archlinux-keyring,artix-keyring,artix-archlinux-support})" ]]; then
+      pacman -S --noconfirm --needed archlinux-keyring artix-keyring artix-archlinux-support
+      pacman-key --init
+      pacman-key --populate archlinux artix
+      cp pacman.conf /etc/pacman.conf
+      pacman -Syy 
+    fi
   }
 
   # Creates GPT-partitions with the following attributes:
@@ -294,13 +267,13 @@
       parted --script -a optimal /dev/"$DRIVE_path" \
         mklabel gpt \
         mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
-        mkpart PRIMARY "$FILESYSTEM_primary" "$BOOT_size"MiB 100% 
+        mkpart SWAP linux-swap "$BOOT_size"MiB "$SWAP_size_allocated"MiB  \
+        mkpart PRIMARY "$FILESYSTEM_primary" "$SWAP_size_allocated"MiB 100% 
     else
       parted --script -a optimal /dev/"$DRIVE_path" \
         mklabel gpt \
         mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
-        mkpart SWAP linux-swap "$BOOT_size"MiB "$SWAP_size_allocated"MiB  \
-        mkpart PRIMARY "$FILESYSTEM_primary" "$SWAP_size_allocated"MiB 100% 
+        mkpart PRIMARY "$FILESYSTEM_primary" "$BOOT_size"MiB 100% 
     fi
   }
 
@@ -380,18 +353,48 @@ EOF
   # dependency. The correct microcode will also be installed depending on the brand of your CPU,
   # while either sudo or opendoas will be installed depending on your choice
   BASESTRAP_PACKAGES() {
+  packages=(
+    "$INIT_choice" 
+    "fcron-$INIT_choice"
+    "dhcpcd-$INIT_choice"
+    "chrony-$INIT_choice" 
+    "networkmanager-$INIT_choice"
+    "elogind-$INIT_choice"
+    "lolcat"
+    "figlet"
+    "cryptsetup"
+    "libressl"
+    "vim"
+    "base"
+    "base-devel"
+    "neovim"
+    "nano"
+    "linux-zen"
+    "zstd"
+    "linux-zen-headers"
+    "grub-btrfs"
+    "os-prober"
+    "efibootmgr"
+    "btrfs-progs"
+    "git"
+    "bc"
+    "lz4"
+    "realtimes-privileges"
+    "mkinitcpio"
+    "artix-archlinux-support"
+  )
     printf -v packages_separated '%s ' "${packages[@]}"
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       if [[ "$SUPERUSER_replace" == "true" ]]; then
-        basestrap /mnt intel-ucode opendoas $packages_separated --needed
+        basestrap /mnt --needed intel-ucode opendoas $packages_separated
       else
-        basestrap /mnt intel-ucode sudo $packages_separated --needed
+        basestrap /mnt --needed intel-ucode sudo $packages_separated
       fi
     elif grep -q AMD "/proc/cpuinfo"; then
       if [[ "$SUPERUSER_replace" == "true" ]]; then
-        basestrap /mnt amd-ucode opendoas $packages_separated --needed
+        basestrap /mnt --needed amd-ucode opendoas $packages_separated
       else
-        basestrap /mnt amd-ucode sudo $packages_separated --needed
+        basestrap /mnt --needed amd-ucode sudo $packages_separated
       fi
     fi
   }
@@ -436,7 +439,7 @@ EOF
     mkdir "$CHROOT_directory"
     cp -- * "$CHROOT_directory"
     CHROOT_command="artix-chroot "$CHROOT_directory" /bin/bash -c"
-    for ((function=0; function < "${#OUTPUT}"; function++)); do
+    for ((function=0; function < "${#functions}"; function++)); do
       export -f "$function"
       "$CHROOT_command" ""$function""
     done
@@ -724,7 +727,7 @@ EOF
         case $(key_input) in
           space)  
             case ${options[0]} in
-              intro)
+              INTRO)
                 COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
                 COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
                 if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(5|6|7) ]]; then
@@ -795,6 +798,7 @@ EOF
 # Customizing your install
 
   REQUIRED_PACKAGES
+
   eval "${messages[0]}"
   MULTISELECT_MENU "${intro[@]}"
 
@@ -833,16 +837,16 @@ EOF
 
 # Actual execution of commands
 
- PACMAN_REPOSITORIES
- UMOUNT
- CREATE_PARTITIONS
- ENCRYPT_PARTITIONS
- FORMATTING_SUBVOLUMES_MOUNT
- BASESTRAP_PACKAGES
- FSTAB_GENERATION
- FSTAB_CHECK
- CHROOT
- FAREWELL
+  PACMAN_REPOSITORIES
+  UMOUNT
+  CREATE_PARTITIONS
+  ENCRYPT_PARTITIONS
+  FORMATTING_SUBVOLUMES_MOUNT
+  BASESTRAP_PACKAGES
+  FSTAB_GENERATION
+  FSTAB_CHECK
+  CHROOT
+  FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
