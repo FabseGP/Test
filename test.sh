@@ -794,6 +794,7 @@ EOF
 
 # Customizing your install
 
+  REQUIRED_PACKAGES
   eval "${messages[0]}"
   MULTISELECT_MENU "${intro[@]}"
 
@@ -832,17 +833,16 @@ EOF
 
 # Actual execution of commands
 
- # REQUIRED_PACKAGES
- # PACMAN_REPOSITORIES
- # UMOUNT
- # CREATE_PARTITIONS
- # ENCRYPT_PARTITIONS
- # FORMATTING_SUBVOLUMES_MOUNT
- # BASESTRAP_PACKAGES
- # FSTAB_GENERATION
- # FSTAB_CHECK
- # CHROOT
- # FAREWELL
+ PACMAN_REPOSITORIES
+ UMOUNT
+ CREATE_PARTITIONS
+ ENCRYPT_PARTITIONS
+ FORMATTING_SUBVOLUMES_MOUNT
+ BASESTRAP_PACKAGES
+ FSTAB_GENERATION
+ FSTAB_CHECK
+ CHROOT
+ FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
