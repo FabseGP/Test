@@ -188,7 +188,7 @@
 
 # Insure that the script is run as root-user
 
-  if ! [ "$USER" = 'root' ]; then
+  if [ "$USER" = 'root' ]; then
     echo
     WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
     lines
@@ -794,7 +794,6 @@ EOF
 
 # Customizing your install
 
-  REQUIRED_PACKAGES
   eval "${messages[0]}"
   MULTISELECT_MENU "${intro[@]}"
 
@@ -833,16 +832,17 @@ EOF
 
 # Actual execution of commands
 
- PACMAN_REPOSITORIES
- UMOUNT
- CREATE_PARTITIONS
- ENCRYPT_PARTITIONS
- FORMATTING_SUBVOLUMES_MOUNT
- BASESTRAP_PACKAGES
- FSTAB_GENERATION
- FSTAB_CHECK
- CHROOT
- FAREWELL
+ # REQUIRED_PACKAGES
+ # PACMAN_REPOSITORIES
+ # UMOUNT
+ # CREATE_PARTITIONS
+ # ENCRYPT_PARTITIONS
+ # FORMATTING_SUBVOLUMES_MOUNT
+ # BASESTRAP_PACKAGES
+ # FSTAB_GENERATION
+ # FSTAB_CHECK
+ # CHROOT
+ # FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
