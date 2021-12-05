@@ -188,7 +188,7 @@
 
 # Insure that the script is run as root-user
 
-  if [ "$USER" = 'root' ]; then
+  if ! [ "$USER" = 'root' ]; then
     echo
     WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
     lines
