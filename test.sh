@@ -188,12 +188,12 @@
 
 # Insure that the script is run as root-user
 
-  if [ "$USER" = 'root' ]; then
+  if ! [ "$USER" = 'root' ]; then
     echo
     WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
-    lines
-    printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING" | lolcat
-    lines
+    PRINT_LINES
+    printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
+    PRINT_LINES
     exit 1
   fi
 
@@ -263,7 +263,7 @@
 
    # Installs packages required by script
    REQUIRED_PACKAGES() {
-     pacman -S --noconfirm --needed lolcat figlet parted
+     pacman -S --noconfirm lolcat figlet parted --needed
    }
 
   # If /mnt is mounted (perhaps due to exiting the script before it finished),
@@ -278,7 +278,7 @@
   # Installs support for arch-repositories and updates all GPG-keys.
   # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
   PACMAN_REPOSITORIES() {
-    pacman -S --noconfirm --needed archlinux-keyring artix-keyring artix-archlinux-support
+    pacman -S --noconfirm archlinux-keyring artix-keyring artix-archlinux-support --needed
     pacman-key --init
     pacman-key --populate archlinux artix
     cp pacman.conf /etc/pacman.conf
@@ -794,6 +794,7 @@ EOF
 
 # Customizing your install
 
+  REQUIRED_PACKAGES
   eval "${messages[0]}"
   MULTISELECT_MENU "${intro[@]}"
 
@@ -832,17 +833,16 @@ EOF
 
 # Actual execution of commands
 
- # REQUIRED_PACKAGES
- # PACMAN_REPOSITORIES
- # UMOUNT
- # CREATE_PARTITIONS
- # ENCRYPT_PARTITIONS
- # FORMATTING_SUBVOLUMES_MOUNT
- # BASESTRAP_PACKAGES
- # FSTAB_GENERATION
- # FSTAB_CHECK
- # CHROOT
- # FAREWELL
+ PACMAN_REPOSITORIES
+ UMOUNT
+ CREATE_PARTITIONS
+ ENCRYPT_PARTITIONS
+ FORMATTING_SUBVOLUMES_MOUNT
+ BASESTRAP_PACKAGES
+ FSTAB_GENERATION
+ FSTAB_CHECK
+ CHROOT
+ FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
