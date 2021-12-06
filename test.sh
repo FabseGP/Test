@@ -380,7 +380,7 @@ EOF
       if [[ "$SUPERUSER_replace" == "true" ]]; then
         basestrap /mnt --needed intel-ucode opendoas $packages_separated
       else
-        basestrap /mnt --needed intel-ucode sudo $packages_separated
+        basestrap /mnt --needed intel-ucode sudo base base-devel
       fi
     elif grep -q AMD "/proc/cpuinfo"; then
       if [[ "$SUPERUSER_replace" == "true" ]]; then
