@@ -308,7 +308,7 @@ EOF
         mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
         MOUNTPOINT="$DRIVE_LABEL_primary"
       fi
-      mount -o noatime,compress=zstd,discard,ssd,defaults $MOUNTPOINT /mnt
+      mount -o noatime,compress=zstd,discard,ssd,defaults /dev/sda3 /mnt
       cd /mnt || return
       for subvolume in "${subvolumes[@]}"; do
         btrfs subvolume create "${subvolumes[subvolume]}"
