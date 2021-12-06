@@ -861,12 +861,20 @@ EOF
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Actual execution of commands
-    for ((function=0; function < ${#functions[@]}; function++)); do
-      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        echo "Hej"
-        export -f "${functions[function]}"
-      fi
-    done
+
+  REQUIRED_PACKAGES
+  TEST
+  PACMAN_REPOSITORIES
+  UMOUNT_MNT
+  CREATE_PARTITIONS
+  FORMAT_AND_ENCRYPT_PARTITIONS
+  CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS
+  BASESTRAP_PACKAGES
+  FSTAB_GENERATION
+  FSTAB_CHECK
+  EXPORT_FUNCTIONS_AND_VARIABLES
+  CHROOT
+  FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
