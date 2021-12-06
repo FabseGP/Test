@@ -235,7 +235,7 @@
 
    # Installs packages required by script
    REQUIRED_PACKAGES() {
-     if [[ -z "$(pacman -Qi lolcat figlet parted)" ]]; then
+     if [[ -z "$(pacman -Qs lolcat)" ]]; then
        pacman -S --noconfirm --needed lolcat figlet parted
      fi
    }
@@ -252,7 +252,7 @@
   # Installs support for arch-repositories and updates all GPG-keys.
   # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
   PACMAN_REPOSITORIES() {
-    if pacman -Qi artix-archlinux-support | grep -q 'error'; then
+    if [[ -z "$(pacman -Qs artix-archlinux-support)" ]]; then
       pacman -S --noconfirm --needed artix-archlinux-support
       pacman-key --init
       pacman-key --populate archlinux artix
