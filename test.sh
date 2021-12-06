@@ -60,7 +60,7 @@
 
   # Subvolumes to be created 
   subvolumes=(
-    \@"root"
+    \@
     \@"home"
     \@"var"
     \@"opt"
