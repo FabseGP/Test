@@ -19,35 +19,35 @@
   ADDITIONAL_packages=""
 
   # Drives and partitions + encryption + mountpoint
-  DRIVE_path="sda"
-  DRIVE_path_boot="/dev/sda1"
-  DRIVE_path_swap="/dev/sda2"
-  DRIVE_path_primary="/dev/sda3"
-  BOOT_size="300"
-  BOOT_label="boot"
-  SWAP_size="700"
-  SWAP_size_allocated="$(("$SWAP_size"+"$BOOT_size"))"
-  SWAP_label="ram_co"
-  PRIMARY_label="root"
+  export DRIVE_path="sda"
+  export DRIVE_path_boot="sda1"
+  export DRIVE_path_swap="sda2"
+  export DRIVE_path_primary="sda3"
+  export BOOT_size="300"
+  export BOOT_label="boot"
+  export SWAP_size="700"
+  export SWAP_size_allocated="1000"
+  export SWAP_label="ram_co"
+  export PRIMARY_label="root"
   ENCRYPTION_passwd=""
-  MOUNTPOINT="/mnt"
+  MOUNTPOINT=""
 
   # Locals
-  TIMEZONE_1="Europe"
-  TIMEZONE_2="Copenhagen"
-  LANGUAGES_generate="da_DK.UTF-8 en_GB.UTF-8"
-  LANGUAGE_system="da_DK.UTF-8"
-  KEYMAP_system="dk-latin1"
-  HOSTNAME_system="fabse"
+  export TIMEZONE_1="Europe"
+  export TIMEZONE_2="Copenhagen"
+  export LANGUAGES_generate="da_DK.UTF-8 en_GB.UTF-8"
+  export LANGUAGE_system="da_DK.UTF-8"
+  export KEYMAP_system="dk-latin1"
+  export HOSTNAME_system="fabse"
 
   # Users
-  ROOT_passwd="root"
-  USERNAME="fabse"
-  USER_passwd="fabse"
+  export ROOT_passwd="root"
+  export USERNAME="fabse"
+  export USER_passwd="fabse"
 
   # Miscellaneous
   PACKAGES_additional=""
-  BOOTLOADER_label="GRUB"
+  export BOOTLOADER_label="grub"
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -63,7 +63,7 @@
     \@
     \@"home"
     \@"var"
-    \@"opt"	
+    \@"opt"
     \@"tmp"
     \@"srv"
     \@\."snapshots"
@@ -73,8 +73,24 @@
   # Size of tmpfs (/tmp) 
   RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
 
-  # Chroot 
-  CHROOT_directory="/mnt"
+  # Functions to execute while in chroot 
+  functions=(
+    "PACMAN_REPOSITORIES" 
+    "SYSTEM_LOCALS"
+    "SYSTEM_USERS"
+    "SYSTEM_AUR"
+    "SYSTEM_ADDITIONAL_PACKAGES"
+    "SYSTEM_SUPERUSER"
+    "SYSTEM_SERVICES"
+    "SYSTEM_INITRAMFS"
+    "SYSTEM_GRUB"
+    "SYSTEM_SNAPSHOTS_OPTIMIZATIONS"
+  )
+
+  # Variables to export (accessible while in chroot)
+  variables=(
+    :
+  )
 
   # Groups which user is added to 
   USER_groups="video,audio,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
@@ -242,7 +258,7 @@
 
   # If /mnt is mounted (perhaps due to exiting the script before it finished),
   # then unmount /mnt and deactivate swap (just a precaution)
-  UMOUNT() {
+  UMOUN_MNTT() {
     if [[ "$(mountpoint /mnt)" ]]; then
       swapoff -a
       umount -R /mnt
@@ -285,10 +301,8 @@
   # though limited to pbkdf2 as key-derivation-function.
   # BCACHEFS supports native encryption, though isn't yet mainlined into the kernel
   # Formats all drives with chosen name, while also specifying the mountpoints for boot and the 
-  # primary partition. Also creates subvolumes to avoid taking snapshots of unnecessary paths, 
-  # e.g. /var/*. BCACHEFS-snapshots is supported natively and will be implemented.
-  # Also plain-encrypts the swap-partition if created
-  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT() {
+  # primary partition. 
+  FORMAT_AND_ENCRYPT_PARTITIONS() {
     mkfs.vfat -F32 -n "$BOOT_label" "$DRIVE_path_boot" 
     if [[ "$SWAP_partition" == "true" ]]; then
       mkswap -L "$SWAP_label" "$DRIVE_path_swap"
@@ -308,6 +322,20 @@ EOF
         mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
         MOUNTPOINT="$DRIVE_path_primary"
       fi
+    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
+      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
+      else
+        bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
+      fi
+    fi
+  }
+
+  # Also creates subvolumes to avoid taking snapshots of unnecessary paths, 
+  # e.g. /var/*. BCACHEFS-snapshots is supported natively and will be implemented.
+  # Also plain-encrypts the swap-partition if created
+  CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
+    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
       cd /mnt || return
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
@@ -330,11 +358,6 @@ EOF
       done
       sync
     elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
-      else
-        bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
-      fi
       :
     fi
     cd "$BEGINNER_DIR" || exit
@@ -411,27 +434,23 @@ EOF
     fi
   }
 
+  EXPORT_FUNCTIONS_AND_VARIABLES() {
+    for ((function=0; function < "${#functions}"; function++)); do
+      export -f ${functions[function]}
+    done
+    for ((variable=0; variable < "${#variables}"; variable++)); do
+      export ${variables[variable]}
+    done
+  }
+
   # All functions (specified in the array) to be executed in chroot is exported to allow chroot-shell
   # to execute them. Contents of the current folder (such as pacman.conf, paru.conf etc.)
   # is copied to the CHROOT_directory; default is "/mnt/install_scripts"
   CHROOT() {
-    functions=(
-      "PACMAN_REPOSITORIES" 
-      "SYSTEM_LOCALS"
-      "SYSTEM_USERS"
-      "SYSTEM_AUR"
-      "SYSTEM_ADDITIONAL_PACKAGES"
-      "SYSTEM_SUPERUSER"
-      "SYSTEM_SERVICES"
-      "SYSTEM_INITRAMFS"
-      "SYSTEM_GRUB"
-      "SYSTEM_SNAPSHOTS_OPTIMIZATIONS"
-    )
-    mkdir -p "$CHROOT_directory"
-    cp -- * "$CHROOT_directory"
+    mkdir /mnt/install_script
+    cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
-      export -f ${functions[function]}
-      artix-chroot "$CHROOT_directory" /bin/bash -c "${functions[function]}"
+      artix-chroot /mnt /bin/bash -c "${functions[function]}"
     done
   }
 
@@ -464,7 +483,7 @@ EOF
     cat << EOF | tee -a /etc/hosts > /dev/null
 127.0.0.1 localhost
 ::1 localhost
-127.0.1.1 "$HOSTNAME_system".localdomain "$HOSTNAM_system" 
+127.0.1.1 "$HOSTNAME_system".localdomain "$HOSTNAME_system" 
 EOF
   }
 
@@ -795,13 +814,12 @@ EOF
 
 # Customizing your install
 
-  REQUIRED_PACKAGES
-
+  TEST() {
   eval "${messages[0]}"
   MULTISELECT_MENU "${intro[@]}"
 
   if [[ "$CHOICE_1" == "true" ]]; then # Choice of filesystem
-    FILESYSTEM_primary="btrfs"
+    export FILESYSTEM_primary="btrfs"
   elif [[ "$CHOICE_2" == "true" ]]; then
     FILESYSTEM_primary="bcachefs"
   fi
@@ -815,33 +833,38 @@ EOF
     FSTAB_check="true"
   fi
   if [[ "$CHOICE_6" == "true" ]]; then # Choice of init
-    INIT_choice="runit"
+    export INIT_choice="runit"
   elif [[ "$CHOICE_7" == "true" ]]; then
-    INIT_choice="openrc"
+    export INIT_choice="openrc"
   elif [[ "$CHOICE_8" == "true" ]]; then
-    INIT_choice="dinit"
+    export INIT_choice="dinit"
   fi
   if [[ "$CHOICE_9" == "true" ]]; then # Whether to install an AUR-helper
-    AUR_helper="true"
+    export AUR_helper="true"
   fi
   if [[ "$CHOICE_10" == "true" ]]; then # Whether to replace sudo with doas
-    SUPERUSER_replace="true"
+    export SUPERUSER_replace="true"
   fi
   if [[ "$CHOICE_11" == "true" ]]; then # Whether to install additional packages
     ADDITIONAL_packages="true"
   fi
+}
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Actual execution of commands
 
   PACMAN_REPOSITORIES
-  UMOUNT
+  REQUIRED_PACKAGES
+  TEST
+  UMOUNT_MNT
   CREATE_PARTITIONS
-  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
+  FORMAT_AND_ENCRYPT_PARTITIONS
+  CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS
   BASESTRAP_PACKAGES
   FSTAB_GENERATION
   FSTAB_CHECK
+  EXPORT_FUNCTIONS_AND_VARIABLES
   CHROOT
   FAREWELL
 
