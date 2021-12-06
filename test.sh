@@ -25,9 +25,9 @@
   DRIVE_path_primary="/dev/sda3"
   BOOT_size="300"
   BOOT_label="boot"
-  SWAP_size="200"
-  SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
-  SWAP_label="ram"
+  SWAP_size="700"
+  SWAP_size_allocated="$(("$SWAP_size"+"$BOOT_size"))"
+  SWAP_label="ram_co"
   PRIMARY_label="root"
   ENCRYPTION_passwd=""
   MOUNTPOINT="/mnt"
@@ -47,7 +47,7 @@
 
   # Miscellaneous
   PACKAGES_additional=""
-  BOOTLOADER_label="grub"
+  BOOTLOADER_label="GRUB"
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -62,10 +62,9 @@
   subvolumes=(
     "@"
     "@home"
-    "@var_log"
-    "@var_tmp"
-    "@var_abs"
-    "@var_pkg"
+    "@var"
+    "@opt"
+    "@tmp"
     "@srv"
     "@.snapshots"
     "@grub"
@@ -157,13 +156,15 @@
 
 # Insure that the script is run as root-user
 
-  if ! [ "$USER" = 'root' ]; then
-    echo
-    WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
-    PRINT_LINES
-    printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
-    PRINT_LINES
-    exit 1
+  if [ -z "$1" ]; then
+    if ! [ "$USER" = 'root' ]; then
+      echo
+      WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
+      PRINT_LINES
+      printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
+      PRINT_LINES
+      exit 1
+    fi
   fi
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -180,9 +181,11 @@
     "runit as init" 
     "openrc as init" 
     "dinit as init" 
-    "Install an AUR-helper" 
     "Replace sudo with doas" 
+    "Install an AUR-helper" 
     "Install additional packages"
+    "Pull and execute custom scripts from Github while in chroot"
+    "Cleanup script-files after install"
    )
 
   partitions=(
@@ -232,7 +235,7 @@
 
    # Installs packages required by script
    REQUIRED_PACKAGES() {
-     if [[ -z "$(pacman -Qs {lolcat,figlet,parted})" ]]; then
+     if [[ -z "$(pacman -Qi lolcat figlet parted)" ]]; then
        pacman -S --noconfirm --needed lolcat figlet parted
      fi
    }
@@ -249,7 +252,7 @@
   # Installs support for arch-repositories and updates all GPG-keys.
   # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
   PACMAN_REPOSITORIES() {
-    if [[ -z "$(pacman -Qs {archlinux-keyring,artix-keyring,artix-archlinux-support})" ]]; then
+    if [[ -z "$(pacman -Qi archlinux-keyring artix-keyring artix-archlinux-support)" ]]; then
       pacman -S --noconfirm --needed archlinux-keyring artix-keyring artix-archlinux-support
       pacman-key --init
       pacman-key --populate archlinux artix
@@ -281,72 +284,59 @@
   # encryption-password is piped through. GRUB finally has (albeit limited) support for luks2,
   # though limited to pbkdf2 as key-derivation-function.
   # BCACHEFS supports native encryption, though isn't yet mainlined into the kernel
-  ENCRYPT_PARTITIONS() {
-    if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
-        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf=pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
-        echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
-      fi
-    fi
-  }
-
   # Formats all drives with chosen name, while also specifying the mountpoints for boot and the 
   # primary partition. Also creates subvolumes to avoid taking snapshots of unnecessary paths, 
   # e.g. /var/*. BCACHEFS-snapshots is supported natively and will be implemented.
   # Also plain-encrypts the swap-partition if created
-  FORMATTING_SUBVOLUMES_MOUNT() {
-    printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
+  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT() {
     mkfs.vfat -F32 -n "$BOOT_label" "$DRIVE_path_boot" 
     if [[ "$SWAP_partition" == "true" ]]; then
       mkswap -L "$SWAP_label" "$DRIVE_path_swap"
-    fi
-    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
-      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        mkfs.btrfs -f -L "$PRIMARY_label" /dev/mapper/cryptroot
-        MOUNTPOINT="/dev/mapper/cryptroot"
-      else
-        mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
-        MOUNTPOINT="$DRIVE_LABEL_primary"
-      fi
-    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
-      else
-        bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
-      fi
-    fi
-    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
-      mount -o noatime,compress=zstd,discard,ssd,defaults "$MOUNTPOINT" /mnt
-      cd /mnt || return
-      for subvolume in "${subvolumes[@]}"; do
-        btrfs subvolume create "$subvolume"
-      done
-      cd /
-      umount /mnt
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot,home,srv,.snapshots,.secret,var/{abs,tmp,log,cache/pacman/pkg}}
-      for subvolume in "${subvolumes[@]}"; do
-        mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="$subvolume" "$MOUNTPOINT" /mnt/"$subvolume"
-      done
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@var_pkg "$MOUNTPOINT" /mnt/var/cache/pacman/pkg
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@var_log "$MOUNTPOINT" /mnt/var/log
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@var_abs "$MOUNTPOINT" /mnt/var/abs
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@var_tmp "$MOUNTPOINT" /mnt/var/tmp
-      mkdir -p /mnt/boot/{EFI,grub}
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@grub "$MOUNTPOINT" /mnt/boot/grub
-      sync
-    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-      :
-    fi
-    cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/boot/EFI
-    if [[ "$SWAP_partition" == "true" ]]; then
       swapon "$DRIVE_path_swap"
       UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
       cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
 swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
 EOF
     fi
+    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf=pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
+        echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
+        mkfs.btrfs -f -L "$PRIMARY_label" /dev/mapper/cryptroot
+        MOUNTPOINT="/dev/mapper/cryptroot"
+      else
+        mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
+        MOUNTPOINT="$DRIVE_LABEL_primary"
+      fi
+      mount -o noatime,compress=zstd,discard,ssd,defaults "$MOUNTPOINT" /mnt
+      cd /mnt || return
+      for subvolume in "${subvolumes[@]}"; do
+        btrfs subvolume create "${subvolumes[subvolume]}"
+      done
+      cd /
+      umount /mnt
+      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ "$MOUNTPOINT" /mnt
+      mkdir -p /mnt/{boot/{EFI,grub},home,srv,.snapshots,.secret}
+      printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
+      for subvolume in "${subvolumes[@]}"; do
+        subvolume_path="${subvolumes[subvolume]}" | sed 's/@//'
+        if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
+          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="$subvolume" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
+        else
+          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="$subvolume" "$MOUNTPOINT" /mnt/"$subvolume_path"
+        fi
+      done
+      sync
+    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
+      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
+      else
+        bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
+      fi
+      :
+    fi
+    cd "$BEGINNER_DIR" || exit
+    mount "$DRIVE_path_boot" /mnt/boot/EFI
   }
  
   # Specifies array of packages to install - "fcron-$INIT_choice" also installs fcron, as it's a
@@ -359,29 +349,29 @@ EOF
     "dhcpcd-$INIT_choice"
     "chrony-$INIT_choice" 
     "networkmanager-$INIT_choice"
-    "elogind-$INIT_choice"
+    "seatd-$INIT_choice"
     "lolcat"
     "figlet"
     "cryptsetup"
     "libressl"
     "vim"
-    "base"
-    "base-devel"
     "neovim"
     "nano"
+    "realtimes-privileges"
+    "artix-archlinux-support"
+    "base"
+    "base-devel"
     "linux-zen"
-    "zstd"
     "linux-zen-headers"
     "grub-btrfs"
     "os-prober"
     "efibootmgr"
     "btrfs-progs"
-    "git"
-    "bc"
-    "lz4"
-    "realtimes-privileges"
     "mkinitcpio"
-    "artix-archlinux-support"
+    "zstd"
+    "lz4"
+    "bc"
+    "git"
   )
     printf -v packages_separated '%s ' "${packages[@]}"
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
@@ -438,10 +428,9 @@ EOF
     )
     mkdir "$CHROOT_directory"
     cp -- * "$CHROOT_directory"
-    CHROOT_command="artix-chroot "$CHROOT_directory" /bin/bash -c"
     for ((function=0; function < "${#functions}"; function++)); do
-      export -f "$function"
-      "$CHROOT_command" ""$function""
+      export -f ${functions[function]}
+      artix-chroot "$CHROOT_directory" /bin/bash -c "${functions[function]}"
     done
   }
 
@@ -506,7 +495,7 @@ EOF
   }
 
   SYSTEM_ADDITIONAL_PACKAGES() {
-    pacman --noconfim --useask -S "$PACKAGES_additional"
+    pacman -S --noconfirm --needed "$PACKAGES_additional"
   }
 
   SYSTEM_SUPERUSER() {
@@ -519,7 +508,9 @@ EOF
       chmod -c 0400 /etc/doas.conf
     else
       echo "%wheel ALL=(ALL) ALL" | (EDITOR="tee -a" visudo)
-      sed -i -e "/Sudo = doas/s/^#*/;/" /etc/paru.conf
+      if [[ "$AUR_helper" == "true" ]]; then
+        sed -i -e "/Sudo = doas/s/^#*/;/" /etc/paru.conf
+      fi
     fi 
   }
 
@@ -543,22 +534,25 @@ EOF
   }
 
   SYSTEM_INITRAMFS() {
-    if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
-      chmod 600 /.secret/crypto_keyfile.bin
-      chmod 600 /boot/initramfs-linux*
-      echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path" /.secret/crypto_keyfile.bin
-      sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
+    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
+        chmod 600 /.secret/crypto_keyfile.bin
+        chmod 600 /boot/initramfs-linux*
+        echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path" /.secret/crypto_keyfile.bin
+        sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
+      else
+        sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
+      fi
     fi
     sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck)/' /etc/mkinitcpio.conf
-    sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
     mkinitcpio -p linux-zen
   }
 
   SYSTEM_GRUB() {
-    grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs" --recheck
-    if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+    if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs" --recheck
         UUID_1=$(blkid -s UUID -o value "$DRIVE_LABEL")
         UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_LABEL" | awk '$1=="part"{print $2}' | tr -d -)
         sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
@@ -578,9 +572,11 @@ normal
 EOF
         grub-mkimage -p '(crypto0)/@grub' -O x86_64-efi -c grub-pre.cfg -o /boot/EFI/EFI/"$BOOTLOADER_label"/grubx64.efi luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs
         rm grub-pre.cfg
-      elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-        :
+      else
+        grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
       fi
+    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
+      :
     fi
     grub-mkconfig -o /boot/grub/grub.cfg
   }
@@ -634,22 +630,23 @@ EOF
     until [[ "$PROCEED" == "true" ]]; do 
       ESC=$( printf "\033")
       cursor_blink_on() { 
-        printf "$ESC[?25h";
+        printf "$ESC[?25h"
       }
       cursor_blink_off() { 
-        printf "$ESC[?25l"; 
+        printf "$ESC[?25l" 
       }
       cursor_to() { 
-        printf "$ESC[$1;${2:-1}H"; 
+        printf "$ESC[$1;${2:-1}H"
       }
       print_inactive() { 
-        printf "$2   $1 "; 
+        printf "$2   $1 "
       }
       print_active() { 
-        printf "$2  $ESC[7m $1 $ESC[27m"; 
+        printf "$2  $ESC[7m $1 $ESC[27m" 
       }
       get_cursor_row() { 
-        IFS=';' read -rsdR -p $'\E[6n' ROW COL; echo "${ROW#*[}"; 
+        IFS=';' read -rsdR -p $'\E[6n' ROW COL
+        echo "${ROW#*[}"
       }
       return_value="result"
       options=("$@")
@@ -841,7 +838,7 @@ EOF
   UMOUNT
   CREATE_PARTITIONS
   ENCRYPT_PARTITIONS
-  FORMATTING_SUBVOLUMES_MOUNT
+  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
   BASESTRAP_PACKAGES
   FSTAB_GENERATION
   FSTAB_CHECK
