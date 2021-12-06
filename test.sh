@@ -315,7 +315,7 @@ EOF
       done
       cd /
       umount /mnt
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ $MOUNTPOINT /mnt
+      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ /dev/sda3 /mnt
       mkdir -p /mnt/{boot/{EFI,grub},home,srv,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
