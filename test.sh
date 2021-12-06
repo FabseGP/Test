@@ -50,6 +50,7 @@
   export BOOTLOADER_label="grub"
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
 
+
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Parameters that customizes the system-install
@@ -73,27 +74,13 @@
   # Size of tmpfs (/tmp) 
   RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
 
-  # Functions to execute while in chroot 
-  functions=(
-    "PACMAN_REPOSITORIES" 
-    "SYSTEM_LOCALS"
-    "SYSTEM_USERS"
-    "SYSTEM_AUR"
-    "SYSTEM_ADDITIONAL_PACKAGES"
-    "SYSTEM_SUPERUSER"
-    "SYSTEM_SERVICES"
-    "SYSTEM_INITRAMFS"
-    "SYSTEM_GRUB"
-    "SYSTEM_SNAPSHOTS_OPTIMIZATIONS"
-  )
-
   # Variables to export (accessible while in chroot)
   variables=(
     :
   )
 
   # Groups which user is added to 
-  USER_groups="video,audio,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
+  USER_groups="video,audio,seatd,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
 
   # Miscellaneous security enhancements 
   LOGIN_delay="3000000" # Delays initial login with 3 seconds if wrong credentials
@@ -258,7 +245,7 @@
 
   # If /mnt is mounted (perhaps due to exiting the script before it finished),
   # then unmount /mnt and deactivate swap (just a precaution)
-  UMOUN_MNTT() {
+  UMOUNT_MNT() {
     if [[ "$(mountpoint /mnt)" ]]; then
       swapoff -a
       umount -R /mnt
@@ -375,6 +362,7 @@ EOF
     "chrony-$INIT_choice" 
     "networkmanager-$INIT_choice"
     "seatd-$INIT_choice"
+    "pam_rundir"
     "lolcat"
     "figlet"
     "cryptsetup"
@@ -435,11 +423,14 @@ EOF
   }
 
   EXPORT_FUNCTIONS_AND_VARIABLES() {
+    mapfile -t functions < <( declare -F | )
     for ((function=0; function < "${#functions}"; function++)); do
-      export -f ${functions[function]}
+      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+        export -f "${functions[function]}"
+      fi
     done
     for ((variable=0; variable < "${#variables}"; variable++)); do
-      export ${variables[variable]}
+      export "${variables[variable]}"
     done
   }
 
@@ -450,7 +441,9 @@ EOF
     mkdir /mnt/install_script
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
-      artix-chroot /mnt /bin/bash -c "${functions[function]}"
+      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+        artix-chroot /mnt /bin/bash -c "${functions[function]}"
+      fi
     done
   }
 
@@ -494,6 +487,7 @@ EOF
 
   SYSTEM_AUR() {
     if [[ "$AUR_helper" == "true" ]]; then
+      cd /install_script
       PARU="$(ls -- *paru*)"
       pacman -U --noconfirm $PARU
       pacman -Syu --noconfirm
@@ -569,7 +563,7 @@ EOF
     mkinitcpio -p linux-zen
   }
 
-  SYSTEM_GRUB() {
+  SYSTEM_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       if [[ "$ENCRYPTION_partitions" == "true" ]]; then
         grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs" --recheck
@@ -601,7 +595,8 @@ EOF
     grub-mkconfig -o /boot/grub/grub.cfg
   }
 
-  SYSTEM_SNAPSHOTS_OPTIMIZATIONS() {
+  SYSTEM_MISCELLANEOUS() {
+    cd /install_script
     cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
 auth optional pam_faildelay.so delay="$LOGIN_delay"
 EOF
@@ -619,6 +614,14 @@ EOF
       sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
       sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
     fi
+  }
+
+  SYSTEM_EXTERNAL_SCRIPT() {
+    :
+  }
+
+  SYSTEM_CLEANUP() {
+    :
   }
 
   FAREWELL() {
@@ -819,7 +822,7 @@ EOF
   MULTISELECT_MENU "${intro[@]}"
 
   if [[ "$CHOICE_1" == "true" ]]; then # Choice of filesystem
-    export FILESYSTEM_primary="btrfs"
+    FILESYSTEM_primary="btrfs"
   elif [[ "$CHOICE_2" == "true" ]]; then
     FILESYSTEM_primary="bcachefs"
   fi
@@ -833,17 +836,17 @@ EOF
     FSTAB_check="true"
   fi
   if [[ "$CHOICE_6" == "true" ]]; then # Choice of init
-    export INIT_choice="runit"
+    INIT_choice="runit"
   elif [[ "$CHOICE_7" == "true" ]]; then
-    export INIT_choice="openrc"
+    INIT_choice="openrc"
   elif [[ "$CHOICE_8" == "true" ]]; then
-    export INIT_choice="dinit"
+    INIT_choice="dinit"
   fi
   if [[ "$CHOICE_9" == "true" ]]; then # Whether to install an AUR-helper
-    export AUR_helper="true"
+    AUR_helper="true"
   fi
   if [[ "$CHOICE_10" == "true" ]]; then # Whether to replace sudo with doas
-    export SUPERUSER_replace="true"
+    SUPERUSER_replace="true"
   fi
   if [[ "$CHOICE_11" == "true" ]]; then # Whether to install additional packages
     ADDITIONAL_packages="true"
