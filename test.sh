@@ -63,7 +63,7 @@
     \@
     \@"home"
     \@"var"
-    \@"opt"
+    \@"opt"	
     \@"tmp"
     \@"srv"
     \@\."snapshots"
@@ -360,7 +360,6 @@ EOF
     "neovim"
     "nano"
     "realtime-privileges"
-    "artix-archlinux-support"
     "base"
     "base-devel"
     "linux-zen"
