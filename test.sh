@@ -308,14 +308,14 @@ EOF
         mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
         MOUNTPOINT="$DRIVE_path_primary"
       fi
-      mount -o noatime,compress=zstd,discard,ssd,defaults "$MOUNTPOINT" /mnt
+      mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
       cd /mnt || return
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         btrfs subvolume create "${subvolumes[subvolume]}"
       done
       cd /
       umount /mnt
-      mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ "$MOUNTPOINT" /mnt
+      mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
       mkdir -p /mnt/{boot/{EFI,grub},home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
@@ -323,9 +323,9 @@ EOF
         if [[ "${subvolumes[subvolume]}" == "@" ]]; then
           :
         elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
         else
-          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
         fi
       done
       sync
