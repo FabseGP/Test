@@ -834,15 +834,15 @@ EOF
 
 # Actual execution of commands
 
- # PACMAN_REPOSITORIES
- # UMOUNT
- # CREATE_PARTITIONS
- # ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
- # BASESTRAP_PACKAGES
- # FSTAB_GENERATION
- # FSTAB_CHECK
- # CHROOT
- # FAREWELL
+  PACMAN_REPOSITORIES
+  UMOUNT
+  CREATE_PARTITIONS
+  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
+  BASESTRAP_PACKAGES
+  FSTAB_GENERATION
+  FSTAB_CHECK
+  CHROOT
+  FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
