@@ -425,7 +425,7 @@ EOF
   EXPORT_FUNCTIONS_AND_VARIABLES() {
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        export -f ${functions[function]}
+        export -f "${functions[function]}"
       fi
     done
    # for ((variable=0; variable < "${#variables}"; variable++)); do
@@ -441,7 +441,7 @@ EOF
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        artix-chroot /mnt /bin/bash -c ${functions[function]}
+        artix-chroot /mnt /bin/bash -c "${functions[function]}"
       fi
     done
   }
@@ -646,7 +646,7 @@ EOF
 
   # Must be the last command in this section to export all defined functions;
   # MULTISELECT_MENU is not required to be exported
-  mapfile -t functions < <( declare -F ) 
+  mapfile -t functions < <( compgen -A function ) 
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
