@@ -74,7 +74,7 @@
   RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
 
   # Chroot 
-  CHROOT_directory="/mnt/\@/"
+  CHROOT_directory="/mnt/\@"
 
   # Groups which user is added to 
   USER_groups="video,audio,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
