@@ -321,9 +321,9 @@ EOF
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(echo "${subvolumes[subvolume]}" | sed 's/@//')
         if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" $MOUNTPOINT /mnt/boot/"$subvolume_path"
+          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" /dev/sda3 /mnt/boot/"$subvolume_path"
         else
-          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" $MOUNTPOINT /mnt/"$subvolume_path"
+          mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" /dev/sda3 /mnt/"$subvolume_path"
         fi
       done
       sync
