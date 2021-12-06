@@ -60,14 +60,14 @@
 
   # Subvolumes to be created 
   subvolumes=(
-    "@"
-    "@home"
-    "@var"
-    "@opt"
-    "@tmp"
-    "@srv"
-    "@.snapshots"
-    "@grub"
+    \@"root"
+    \@"home"
+    \@"var"
+    \@"opt"
+    \@"tmp"
+    \@"srv"
+    \@\."snapshots"
+    \@"grub"
   )
 
   # Size of tmpfs (/tmp) 
@@ -310,7 +310,7 @@ EOF
       fi
       mount -o noatime,compress=zstd,discard,ssd,defaults /dev/sda3 /mnt
       cd /mnt || return
-      for subvolume in "${subvolumes[@]}"; do
+      for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         btrfs subvolume create "${subvolumes[subvolume]}"
       done
       cd /
@@ -318,7 +318,7 @@ EOF
       mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ $MOUNTPOINT /mnt
       mkdir -p /mnt/{boot/{EFI,grub},home,srv,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
-      for subvolume in "${subvolumes[@]}"; do
+      for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path="${subvolumes[subvolume]}" | sed 's/@//'
         if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
           mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="$subvolume" $MOUNTPOINT /mnt/boot/"$subvolume_path"
@@ -834,15 +834,15 @@ EOF
 
 # Actual execution of commands
 
-  PACMAN_REPOSITORIES
-  UMOUNT
-  CREATE_PARTITIONS
-  ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
-  BASESTRAP_PACKAGES
-  FSTAB_GENERATION
-  FSTAB_CHECK
-  CHROOT
-  FAREWELL
+ # PACMAN_REPOSITORIES
+ # UMOUNT
+ # CREATE_PARTITIONS
+ # ENCRYPTION_FORMATTING_SUBVOLUMES_MOUNT
+ # BASESTRAP_PACKAGES
+ # FSTAB_GENERATION
+ # FSTAB_CHECK
+ # CHROOT
+ # FAREWELL
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
