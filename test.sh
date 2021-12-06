@@ -77,7 +77,7 @@
 
   # Variables to export (accessible while in chroot)
   variables=(
-    :
+    fabian=sej
   )
 
   # Groups which user is added to 
