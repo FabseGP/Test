@@ -29,7 +29,7 @@
   export SWAP_size_allocated="1000"
   export SWAP_label="ram_co"
   export PRIMARY_label="root"
-  ENCRYPTION_passwd=""
+  export ENCRYPTION_passwd="hallo"
   MOUNTPOINT=""
 
   # Locals
@@ -46,7 +46,7 @@
   export USER_passwd="fabse"
 
   # Miscellaneous
-  export BOOTLOADER_label="grub"
+  BOOTLOADER_label=""
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
   PACKAGES_additional=""
   GITHUB_repo=""
@@ -293,10 +293,6 @@
     if [[ "$SWAP_partition" == "true" ]]; then
       mkswap -L "$SWAP_label" "$DRIVE_path_swap"
       swapon "$DRIVE_path_swap"
-      UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
-      cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
-swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
-EOF
     fi
     if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       if [[ "$ENCRYPTION_partitions" == "true" ]]; then
@@ -406,6 +402,10 @@ EOF
   FSTAB_GENERATION() {
     fstabgen -U /mnt >> /mnt/etc/fstab
     if [[ "$SWAP_partition" == "true" ]]; then
+      UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
+      cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
+swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
+EOF
       sed -i '/swap/c\\/dev\/mapper\/swap  none   swap    defaults   0       0' /mnt/etc/fstab
     fi
     cat << EOF | tee -a /mnt/etc/fstab > /dev/null
@@ -445,7 +445,7 @@ EOF
     done
   }
 
-  SYSTEM_LOCALS() {
+  SYSTEM_01_LOCALS() {
     # Timezone
     if [[ -z "$TIMEZONE_2" ]]; then
       ln -sf /usr/share/zoneinfo/"$TIMEZONE_1" /etc/localtime
@@ -478,12 +478,12 @@ EOF
 EOF
   }
 
-  SYSTEM_USERS() {
+  SYSTEM_02_USERS() {
     echo "root:$ROOT_passwd" | chpasswd
     useradd -m -g users -G "$USER_groups" -p "$(openssl passwd -crypt "$USER_passwd")" "$USERNAME"
   }
 
-  SYSTEM_AUR() {
+  SYSTEM_03_AUR() {
     if [[ "$AUR_helper" == "true" ]]; then
       cd /install_script | exit
       PARU="$(ls -- *paru*)"
@@ -506,11 +506,11 @@ EOF
     fi
   }
 
-  SYSTEM_ADDITIONAL_PACKAGES() {
+  SYSTEM_04_ADDITIONAL_PACKAGES() {
     pacman -S --noconfirm --needed "$PACKAGES_additional"
   }
 
-  SYSTEM_SUPERUSER() {
+  SYSTEM_05_SUPERUSER() {
     if [[ "$SUPERUSER_replace" == "true" ]]; then
       touch /etc/doas.conf
       cat << EOF | tee -a /etc/doas.conf > /dev/null
@@ -526,7 +526,7 @@ EOF
     fi 
   }
 
-  SYSTEM_SERVICES() {
+  SYSTEM_06_SERVICES() {
     if [[ "$INIT_choice" == "dinit" ]]; then
       ln -s ../NetworkManager /etc/dinit.d/boot.d/
       ln -s ../fcron /etc/dinit.d/boot.d/
@@ -545,7 +545,7 @@ EOF
     fi
   }
 
-  SYSTEM_INITRAMFS() {
+  SYSTEM_07_INITRAMFS() {
     if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       if [[ "$ENCRYPTION_partitions" == "true" ]]; then
         dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
@@ -561,12 +561,12 @@ EOF
     mkinitcpio -p linux-zen
   }
 
-  SYSTEM_BOOTLOADER() {
+  SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       if [[ "$ENCRYPTION_partitions" == "true" ]]; then
         grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs" --recheck
-        UUID_1=$(blkid -s UUID -o value "$DRIVE_LABEL")
-        UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_LABEL" | awk '$1=="part"{print $2}' | tr -d -)
+        UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+        UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
         sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
         sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
         touch grub-pre.cfg
@@ -593,7 +593,7 @@ EOF
     grub-mkconfig -o /boot/grub/grub.cfg
   }
 
-  SYSTEM_MISCELLANEOUS() {
+  SYSTEM_09_MISCELLANEOUS() {
     cd /install_script | exit
     cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
 auth optional pam_faildelay.so delay="$LOGIN_delay"
@@ -614,7 +614,7 @@ EOF
     fi
   }
 
-  SYSTEM_EXTERNAL_SCRIPT() {
+  SYSTEM_10_EXTERNAL_SCRIPT() {
     cd /install_script
     REPO_folder=$(basename "$GITHUB_repo")
     git clone "$GITHUB_repo"
@@ -623,7 +623,7 @@ EOF
     ./.sh
   }
 
-  SYSTEM_CLEANUP() {
+  SYSTEM_11_CLEANUP() {
     rm -rf /install_script
   }
 
@@ -635,8 +635,6 @@ EOF
         echo
         PRINT_WITH_COLOR white "\"cryptomount -a\" # Unlocks the encrypted partition; the reason is that /boot is encrypted too"
         PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
-        echo
-        PRINT_WITH_COLOR yellow "You might also want to delete /install_script"
         echo
       elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
         :
