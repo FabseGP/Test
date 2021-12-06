@@ -423,7 +423,7 @@ EOF
   }
 
   EXPORT_FUNCTIONS_AND_VARIABLES() {
-    mapfile -t functions < <( declare -F | )
+    mapfile -t functions < <( declare -F )
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
         export -f "${functions[function]}"
