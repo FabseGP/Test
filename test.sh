@@ -429,9 +429,9 @@ EOF
         export -f ${functions[function]}
       fi
     done
-    for ((variable=0; variable < "${#variables}"; variable++)); do
-      export ${variables[variable]}
-    done
+   # for ((variable=0; variable < "${#variables}"; variable++)); do
+   #   export ${variables[variable]}
+   # done
   }
 
   # All functions (specified in the array) to be executed in chroot is exported to allow chroot-shell
