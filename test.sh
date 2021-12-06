@@ -7,6 +7,7 @@
   BEGINNER_DIR=$(pwd)
   WRONG=""
   PROCEED=""
+  mapfile -t functions < <( declare -F )
   
   # Choices during install; either true or nothing (interpreted as false)
   FILESYSTEM_primary="" # Future support for bcachefs once mainlined
@@ -423,7 +424,6 @@ EOF
   }
 
   EXPORT_FUNCTIONS_AND_VARIABLES() {
-    mapfile -t functions < <( declare -F )
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
         export -f ${functions[function]}
