@@ -426,11 +426,11 @@ EOF
     mapfile -t functions < <( declare -F )
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        export -f "${functions[function]}"
+        export -f ${functions[function]}
       fi
     done
     for ((variable=0; variable < "${#variables}"; variable++)); do
-      export "${variables[variable]}"
+      export ${variables[variable]}
     done
   }
 
