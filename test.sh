@@ -422,7 +422,7 @@ EOF
   }
 
   EXPORT_FUNCTIONS_AND_VARIABLES() {
-    for ((function=0; function < "${#functions}"; function++)); do
+    for ((function=0; function < "${#functions[@]}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
         export -f "${functions[function]}"
       fi
@@ -438,7 +438,7 @@ EOF
   CHROOT() {
     mkdir /mnt/install_script
     cp -- * /mnt/install_script
-    for ((function=0; function < "${#functions}"; function++)); do
+    for ((function=0; function < "${#functions[@]}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
         artix-chroot /mnt /bin/bash -c "${functions[function]}"
       fi
@@ -861,20 +861,12 @@ EOF
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Actual execution of commands
-
-  REQUIRED_PACKAGES
-  TEST
-  PACMAN_REPOSITORIES
-  UMOUNT_MNT
-  CREATE_PARTITIONS
-  FORMAT_AND_ENCRYPT_PARTITIONS
-  CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS
-  BASESTRAP_PACKAGES
-  FSTAB_GENERATION
-  FSTAB_CHECK
-  EXPORT_FUNCTIONS_AND_VARIABLES
-  CHROOT
-  FAREWELL
+    for ((function=0; function < ${#functions[@]}; function++)); do
+      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+        echo "Hej"
+        export -f "${functions[function]}"
+      fi
+    done
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
