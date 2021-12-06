@@ -74,7 +74,7 @@
   RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
 
   # Chroot 
-  CHROOT_directory="/mnt/install_script"
+  CHROOT_directory="/mnt/@/install_script"
 
   # Groups which user is added to 
   USER_groups="video,audio,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
@@ -428,7 +428,7 @@ EOF
       "SYSTEM_GRUB"
       "SYSTEM_SNAPSHOTS_OPTIMIZATIONS"
     )
-    mkdir "$CHROOT_directory"
+    mkdir -p "$CHROOT_directory"
     cp -- * "$CHROOT_directory"
     for ((function=0; function < "${#functions}"; function++)); do
       export -f ${functions[function]}
