@@ -316,7 +316,7 @@ EOF
       cd /
       umount /mnt
       mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot/{EFI,grub},home,srv,.snapshots,.secret}
+      mkdir -p /mnt/{boot/{EFI,grub},home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(echo "${subvolumes[subvolume]}" | sed 's/@//')
