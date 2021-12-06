@@ -320,7 +320,9 @@ EOF
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(echo "${subvolumes[subvolume]}" | sed 's/@//')
-        if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
+        if [[ "${subvolumes[subvolume]}" == "@" ]]; then
+          :
+        elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
           mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
         else
           mount -o noatime,nodiratime,compress=zstd,space_cache,ssd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
