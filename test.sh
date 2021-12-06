@@ -253,7 +253,7 @@
   # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
   PACMAN_REPOSITORIES() {
     if [[ -z "$(pacman -Qi archlinux-keyring artix-keyring artix-archlinux-support)" ]]; then
-      pacman -S --noconfirm --needed archlinux-keyring artix-keyring artix-archlinux-support
+      pacman -S --noconfirm --needed artix-archlinux-support
       pacman-key --init
       pacman-key --populate archlinux artix
       cp pacman.conf /etc/pacman.conf
