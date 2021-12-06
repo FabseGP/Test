@@ -7,7 +7,6 @@
   BEGINNER_DIR=$(pwd)
   WRONG=""
   PROCEED=""
-  mapfile -t functions < <( declare -F )
   
   # Choices during install; either true or nothing (interpreted as false)
   FILESYSTEM_primary="" # Future support for bcachefs once mainlined
@@ -442,7 +441,7 @@ EOF
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        artix-chroot /mnt /bin/bash -c "${functions[function]}"
+        artix-chroot /mnt /bin/bash -c ""${functions[function]}""
       fi
     done
   }
@@ -644,6 +643,10 @@ EOF
     umount -R /mnt
     exit
   }
+
+  # Must be the last command in this section to export all defined functions;
+  # MULTISELECT_MENU is not required to be exported
+  mapfile -t functions < <( declare -F ) 
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
