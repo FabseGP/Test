@@ -20,9 +20,9 @@
 
   # Drives and partitions + encryption + mountpoint
   export DRIVE_path="sda"
-  export DRIVE_path_boot="sda1"
-  export DRIVE_path_swap="sda2"
-  export DRIVE_path_primary="sda3"
+  export DRIVE_path_boot="/dev/sda1"
+  export DRIVE_path_swap="/dev/sda2"
+  export DRIVE_path_primary="/dev/sda3"
   export BOOT_size="300"
   export BOOT_label="boot"
   export SWAP_size="700"
@@ -854,9 +854,9 @@ EOF
 
 # Actual execution of commands
 
-  PACMAN_REPOSITORIES
   REQUIRED_PACKAGES
   TEST
+  PACMAN_REPOSITORIES
   UMOUNT_MNT
   CREATE_PARTITIONS
   FORMAT_AND_ENCRYPT_PARTITIONS
