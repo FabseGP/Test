@@ -46,10 +46,10 @@
   export USER_passwd="fabse"
 
   # Miscellaneous
-  PACKAGES_additional=""
   export BOOTLOADER_label="grub"
   SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
-
+  PACKAGES_additional=""
+  GITHUB_repo=""
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -188,7 +188,6 @@
     "Install an AUR-helper" 
     "Install additional packages"
     "Pull and execute custom scripts from Github while in chroot"
-    "Cleanup script-files after install"
    )
 
   partitions=(
@@ -324,11 +323,11 @@ EOF
   CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
       mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
-      cd /mnt || return
+      cd /mnt || exit
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         btrfs subvolume create "${subvolumes[subvolume]}"
       done
-      cd /
+      cd / || exit
       umount /mnt
       mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
       mkdir -p /mnt/{boot/{EFI,grub},home,srv,var,opt,tmp,.snapshots,.secret}
@@ -425,12 +424,12 @@ EOF
   EXPORT_FUNCTIONS_AND_VARIABLES() {
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        export -f ${functions[function]}
+        export -f "${functions[function]}"
       fi
     done
-   # for ((variable=0; variable < "${#variables}"; variable++)); do
-   #   export ${variables[variable]}
-   # done
+    #for ((variable=0; variable < "${#variables}"; variable++)); do
+    #  export ${variables[variable]}
+    #done
   }
 
   # All functions (specified in the array) to be executed in chroot is exported to allow chroot-shell
@@ -441,7 +440,7 @@ EOF
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        artix-chroot /mnt /bin/bash -c ""${functions[function]}""
+        artix-chroot /mnt /bin/bash -c "${functions[function]}"
       fi
     done
   }
@@ -486,7 +485,7 @@ EOF
 
   SYSTEM_AUR() {
     if [[ "$AUR_helper" == "true" ]]; then
-      cd /install_script
+      cd /install_script | exit
       PARU="$(ls -- *paru*)"
       pacman -U --noconfirm $PARU
       pacman -Syu --noconfirm
@@ -595,7 +594,7 @@ EOF
   }
 
   SYSTEM_MISCELLANEOUS() {
-    cd /install_script
+    cd /install_script | exit
     cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
 auth optional pam_faildelay.so delay="$LOGIN_delay"
 EOF
@@ -616,11 +615,16 @@ EOF
   }
 
   SYSTEM_EXTERNAL_SCRIPT() {
-    :
+    cd /install_script
+    REPO_folder=$(basename "$GITHUB_repo")
+    git clone "$GITHUB_repo"
+    cd "$REPO_folder"
+    chmod u+x *.sh
+    ./.sh
   }
 
   SYSTEM_CLEANUP() {
-    :
+    rm -rf /install_script
   }
 
   FAREWELL() {
@@ -637,8 +641,6 @@ EOF
       elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
         :
       fi
-    else
-      PRINT_WITH_COLOR yellow "You might want to delete /install_script "
     fi
     umount -R /mnt
     exit
