@@ -441,7 +441,7 @@ EOF
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        artix-chroot /mnt /bin/bash -c ""${functions[function]}""
+        artix-chroot /mnt /bin/bash -c ${functions[function]}
       fi
     done
   }
