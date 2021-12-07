@@ -344,7 +344,7 @@
       cd / || exit
       umount /mnt
       mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
+      mkdir -p /mnt/{boot,home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
@@ -593,7 +593,7 @@ insmod normal
 normal
 EOF
       grub-mkimage -p /boot/grub -O x86_64-efi -c grub-pre.cfg -o /tmp/grubx64.efi luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs
-      install -v /tmp/grubx64.efi /boot/EFI/GRUB/grubx64.efi
+      install -v /tmp/grubx64.efi /boot/EFI/grub/grubx64.efi
       rm {grub-pre.cfg,/tmp/grubx64.efi}
     elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
