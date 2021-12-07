@@ -243,7 +243,7 @@
        printf "%s" "Installing dependencies "
        local command="pacman -S --noconfirm --needed lolcat figlet parted"
        $command > /dev/null &
-       while [[ ! $(pacman -Qs thunar) ]]; do
+       while [[ ! $(pacman -Qs lolcat) ]]; do
          PRINT_PROGRESS_BAR 
          sleep 1
        done
