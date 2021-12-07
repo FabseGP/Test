@@ -849,6 +849,9 @@ EOF
   for ((function=0; function < "${#functions[@]}"; function++)); do
     if [[ "${functions[function]}" == "SCRIPT"* ]]; then
       "${functions[function]}"
+    elif [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+      export -f "${functions[function]}"
+      artix-chroot /mnt /bin/bash -c "${functions[function]}"
     fi
   done
 
