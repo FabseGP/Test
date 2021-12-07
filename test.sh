@@ -566,7 +566,7 @@ EOF
         dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
         chmod 600 /.secret/crypto_keyfile.bin
         chmod 600 /boot/initramfs-linux*
-        echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path" /.secret/crypto_keyfile.bin
+        echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path_primary" /.secret/crypto_keyfile.bin
         sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
       else
         sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
