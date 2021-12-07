@@ -242,8 +242,8 @@
      if [[ -z "$(pacman -Qs lolcat)" ]]; then
        printf "%s" "Installing dependencies "
        local command="pacman -S --noconfirm --needed lolcat figlet parted"
+       $command > /dev/null &
        while [[ ! $(pacman -Qs thunar) ]]; do
-         $command > /dev/null &
          PRINT_PROGRESS_BAR 
          sleep 1
        done
