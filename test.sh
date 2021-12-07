@@ -586,9 +586,9 @@ EOF
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
 set crypto_UUID=$UUID_2
-cryptomount -u $crypto_UUID
+cryptomount -u $UUID_2
 set root=crypto0
-set prefix=($root)/boot/grub
+set prefix=(crypto0)/boot/grub
 insmod normal
 normal
 EOF
