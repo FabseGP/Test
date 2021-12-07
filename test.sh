@@ -68,17 +68,16 @@
     \@"tmp"
     \@"srv"
     \@\."snapshots"
-    \@"grub"
   )
 
   # Size of tmpfs (/tmp) 
   RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
 
   # Groups which user is added to 
-  USER_groups="video,audio,seatd,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
+  export USER_groups="video,audio,seatd,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
 
   # Miscellaneous security enhancements 
-  LOGIN_delay="3000000" # Delays initial login with 3 seconds if wrong credentials
+  export LOGIN_delay="3000000" # Delays initial login with 3 seconds if wrong credentials
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -345,14 +344,12 @@
       cd / || exit
       umount /mnt
       mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot/{EFI,grub},home,srv,var,opt,tmp,.snapshots,.secret}
+      mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
         if [[ "${subvolumes[subvolume]}" == "@" ]]; then
           :
-        elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
         else
           mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
         fi
@@ -523,7 +520,9 @@ EOF
   }
 
   SYSTEM_04_ADDITIONAL_PACKAGES() {
-    pacman -S --noconfirm --needed "$PACKAGES_additional"
+    if [[ "$ADDITIONAL_packages" == "true" ]]; then
+      pacman -S --noconfirm --needed "$PACKAGES_additional"
+    fi
   }
 
   SYSTEM_05_SUPERUSER() {
@@ -579,26 +578,23 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs" --recheck
+      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
       UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
-insmod all_video
-set gfxmode=auto
-terminal_input console
-terminal_output gfxterm
 set crypto_UUID=$UUID_2
 cryptomount -u $crypto_UUID
-set root='(crypto0)'
-set prefix='(crypto0)/@grub'
+set root=crypto0
+set prefix=($root)/boot/grub
 insmod normal
 normal
 EOF
-      grub-mkimage -p '(crypto0)/@grub' -O x86_64-efi -c grub-pre.cfg -o /boot/EFI/EFI/"$BOOTLOADER_label"/grubx64.efi luks2 fat all_video jpeg png pbkdf2 gettext gzio gfxterm gfxmenu gfxterm_background part_gpt cryptodisk gcry_rijndael gcry_sha512 btrfs
-      rm grub-pre.cfg
+      grub-mkimage -p /boot/grub -O x86_64-efi -c grub-pre.cfg -o /tmp/grubx64.efi luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael  gcry_sha256 gcry_sha512 btrfs
+      install -v /tmp/grubx64.efi /boot/EFI/GRUB/grubx64.efi
+      rm {grub-pre.cfg,/tmp/grubx64.efi}
     elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
     elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
@@ -615,10 +611,10 @@ EOF
     cp btrfs_snapshot.sh /.snapshots # Maximum 3 snapshots stored
     chmod u+x /.snapshots/*
     sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
-    if [[ -z "$SNAPSHOT_time" ]]; then
+    if [[ -z "$SNAPSHOT_cronjob_time" ]]; then
       CRONJOB_snapshots="0 13 * * * /.snapshots/btrfs_snapshot.sh" # Each day at 13:00 local time
     else
-      CRONJOB_snapshots="0 $SNAPSHOT_time * * * /.snapshots/btrfs_snapshot.sh"
+      CRONJOB_snapshots="0 $SNAPSHOT_cronjob_time * * * /.snapshots/btrfs_snapshot.sh"
     fi
     (fcrontab -u root -l; echo "$CRONJOB_snapshots" ) | fcrontab -u root -
     if [[ "$INIT_choice" == "openrc" ]]; then
@@ -629,12 +625,14 @@ EOF
   }
 
   SYSTEM_10_EXTERNAL_SCRIPT() {
-    cd /install_script || exit
-    REPO_folder=$(basename "$GITHUB_repo")
-    git clone "$GITHUB_repo"
-    cd "$REPO_folder" || exit
-    chmod u+x -- *.sh
-    ./.sh
+    if [[ "$CUSTOM_script" == "true" ]]; then
+      cd /install_script || exit
+      REPO_folder=$(basename "$GITHUB_repo")
+      git clone "$GITHUB_repo"
+      cd "$REPO_folder" || exit
+      chmod u+x -- *.sh
+      ./.sh
+    fi
   }
 
   SYSTEM_11_CLEANUP() {
