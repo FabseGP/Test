@@ -447,25 +447,15 @@ EOF
     fi
   }
 
-  SCRIPT_11_EXPORT_FUNCTIONS_AND_VARIABLES() {
-    for ((function=0; function < "${#functions[@]}"; function++)); do
-      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        export -f "${functions[function]}"
-      fi
-    done
-    #for ((variable=0; variable < "${#variables}"; variable++)); do
-    #  export ${variables[variable]}
-    #done
-  }
-
   # All functions (specified in the array) to be executed in chroot is exported to allow chroot-shell
   # to execute them. Contents of the current folder (such as pacman.conf, paru.conf etc.)
   # is copied to the CHROOT_directory; default is "/mnt/install_scripts"
-  SCRIPT_12_CHROOT() {
+  SCRIPT_11_CHROOT() {
     mkdir /mnt/install_script
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions[@]}"; function++)); do
       if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+        export -f "${functions[function]}"
         artix-chroot /mnt /bin/bash -c "${functions[function]}"
       fi
     done
@@ -651,7 +641,7 @@ EOF
     rm -rf /install_script
   }
 
-  SCRIPT_13_FAREWELL() {
+  SCRIPT_12_FAREWELL() {
     if [[ "$ENCRYPTION_partitions" == "true" ]]; then
       if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
         PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
@@ -849,9 +839,6 @@ EOF
   for ((function=0; function < "${#functions[@]}"; function++)); do
     if [[ "${functions[function]}" == "SCRIPT"* ]]; then
       "${functions[function]}"
-    elif [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-      export -f "${functions[function]}"
-      artix-chroot /mnt /bin/bash -c "${functions[function]}"
     fi
   done
 
