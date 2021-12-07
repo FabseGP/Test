@@ -179,7 +179,7 @@
     "INTRO"
     "FILESYSTEM_primary_btrfs:BTRFS as filesystem"
     "FILESYSTEM_primary_bcachefs:$BCACHEFS_notice"
-    "ENCRYPTION_primary:Encryption" 
+    "ENCRYPTION_partitions:Encryption" 
     "SWAP_partition:Swap-partition" 
     "FSTAB_check:FSTAB-check before system-install" 
     "INIT_choice_runit:runit as init" 
