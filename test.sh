@@ -344,7 +344,7 @@
       cd / || exit
       umount /mnt
       mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot,home,srv,var,opt,tmp,.snapshots,.secret}
+      mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
@@ -578,7 +578,7 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id="$BOOTLOADER_label"
+      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
       UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
@@ -593,7 +593,7 @@ insmod normal
 normal
 EOF
       grub-mkimage -p /boot/grub -O x86_64-efi -c grub-pre.cfg -o /tmp/grubx64.efi luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs
-      install -v /tmp/grubx64.efi /boot/EFI/grub/grubx64.efi
+      install -v /tmp/grubx64.efi /boot/EFI/EFI/grub/grubx64.efi
       rm {grub-pre.cfg,/tmp/grubx64.efi}
     elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
