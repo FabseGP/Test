@@ -395,7 +395,8 @@
     "base-devel"
     "linux-zen"
     "linux-zen-headers"
-    "grub-btrfs"
+    "refind"
+    "gdisk"
     "os-prober"
     "efibootmgr"
     "btrfs-progs"
@@ -574,29 +575,30 @@ EOF
         sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
       fi
     fi
-    sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck\ grub-btrfs-overlayfs)/' /etc/mkinitcpio.conf
+    sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck)/' /etc/mkinitcpio.conf
     mkinitcpio -p linux-zen
   }
 
   SYSTEM_08_BOOTLOADER() {
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
-      sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/boot\/EFI\/grub"/' /etc/default/grub-btrfs/config
-      touch /etc/grub.d/01_header
-      cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
+   # if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
+   #   sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
+   #   sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
+   #   sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+   #   sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/boot\/EFI\/grub"/' /etc/default/grub-btrfs/config
+   #   touch /etc/grub.d/01_header
+   #   cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
 #! /bin/sh
 
-crypto_uuid=$UUID_2
-echo "cryptomount -u $UUID_2"
+#crypto_uuid=$UUID_2
+#echo "cryptomount -u $UUID_2"
 
-EOF
-    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
-      :
-    fi
-    grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
-    grub-mkconfig -o /boot/EFI/grub/grub.cfg
+#EOF
+   # elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
+    #  :
+    #fi
+   # grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+   # grub-mkconfig -o /boot/EFI/grub/grub.cfg
+refind-install --usedefault "$DRIVE_path_boot"
   }
 
   SYSTEM_09_MISCELLANEOUS() {
@@ -606,7 +608,7 @@ auth optional pam_faildelay.so delay="$LOGIN_delay"
 EOF
     cp btrfs_snapshot.sh /.snapshots # Maximum 3 snapshots stored
     chmod u+x /.snapshots/*
-    sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
+    #sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
     if [[ -z "$SNAPSHOT_cronjob_time" ]]; then
       CRONJOB_snapshots="0 13 * * * /.snapshots/btrfs_snapshot.sh" # Each day at 13:00 local time
     else
