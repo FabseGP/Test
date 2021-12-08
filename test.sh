@@ -578,17 +578,16 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs"
       UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
-set crypto_UUID=$UUID_2
 cryptomount -u $UUID_2
 set root=crypto0
-set prefix=(crypto0)/boot/grub
+set prefix=(crypto0)/@/boot/grub
 insmod normal
 normal
 EOF
