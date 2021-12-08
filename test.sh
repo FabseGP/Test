@@ -596,7 +596,7 @@ EOF
       :
     fi
     grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/boot --bootloader-id="$BOOTLOADER_label"
-    grub-mkconfig -o /efi/grub/grub.cfg
+    grub-mkconfig -o /efi/EFI/grub/grub.cfg
   }
 
   SYSTEM_09_MISCELLANEOUS() {
