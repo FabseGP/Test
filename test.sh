@@ -360,6 +360,8 @@
     fi
     cd "$BEGINNER_DIR" || exit
     mount "$DRIVE_path_boot" /mnt/efi
+    export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+    export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
   }
  
   # Specifies array of packages to install - "fcron-$INIT_choice" also installs fcron, as it's a
@@ -578,8 +580,6 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
-      export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
