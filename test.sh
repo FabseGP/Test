@@ -602,7 +602,7 @@ refind-install
 rm -rf /boot/refind_linux.conf
 touch /boot/refind_linux.conf
     cat << EOF | tee -a /boot/refind_linux.conf > /dev/null # 3 seconds delay, when system login failes
-"Boot with standard options"  "rd.luks.name=$UUID_1=cryptsystem root=UUID=$UUID_1 rootflags=subvol=@ initrd=/intel-ucode.img initrd=/initramfs-linux-zen.img"
+"Boot with standard options"  "rd.luks.name=$UUID_1=$PRIMARY_label root=UUID=$UUID_1 rootflags=subvol=@ initrd=/intel-ucode.img initrd=/initramfs-linux-zen.img"
 EOF
   }
 
