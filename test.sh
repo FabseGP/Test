@@ -581,14 +581,14 @@ EOF
       UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt part_msdos luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs/' /etc/default/grub
+      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt part_msdos luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       touch /etc/grub.d/01_header
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
 #! /bin/sh
 
 crypto_uuid=$UUID_2
-echo "cryptomount -u $crypto_uuid"
+echo "cryptomount -u $UUID_2"
 
 EOF
       grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs"
