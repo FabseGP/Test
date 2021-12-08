@@ -598,7 +598,7 @@ EOF
     #fi
    # grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
    # grub-mkconfig -o /boot/EFI/grub/grub.cfg
-refind-install --usedefault "$DRIVE_path_boot"
+refind-install --root "$DRIVE_path_boot" --alldrivers
   }
 
   SYSTEM_09_MISCELLANEOUS() {
