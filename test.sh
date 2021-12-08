@@ -598,7 +598,12 @@ EOF
     #fi
    # grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
    # grub-mkconfig -o /boot/EFI/grub/grub.cfg
-refind-install --root "$DRIVE_path_boot" --alldrivers
+refind-install
+rm -rf /boot/refind_linux.conf
+touch /boot/refind_linux.conf
+    cat << EOF | tee -a /boot/refind_linux.conf > /dev/null # 3 seconds delay, when system login failes
+"Boot with standard options"  "rd.luks.name=$UUID_1=cryptsystem root=UUID=$UUID_1 rootflags=subvol=@ initrd=/intel-ucode.img initrd=/initramfs-linux-zen.img"
+EOF
   }
 
   SYSTEM_09_MISCELLANEOUS() {
