@@ -344,7 +344,7 @@
       cd / || exit
       umount /mnt
       mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
+      mkdir -p /mnt/{boot,efi,home,srv,var,opt,tmp,.snapshots,.secret}
       printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
       for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
         subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
@@ -359,7 +359,7 @@
       :
     fi
     cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/boot/EFI
+    mount "$DRIVE_path_boot" /mnt/efi
   }
  
   # Specifies array of packages to install - "fcron-$INIT_choice" also installs fcron, as it's a
@@ -572,32 +572,31 @@ EOF
         sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
       fi
     fi
-    sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck\ grub-btrfs-overlayfs)/' /etc/mkinitcpio.conf
+    sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck)/' /etc/mkinitcpio.conf
     mkinitcpio -p linux-zen
   }
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
-      UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
+      export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+      export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt part_msdos luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs"/' /etc/default/grub
+      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       touch /etc/grub.d/01_header
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
 #! /bin/sh
 
 crypto_uuid=$UUID_2
-echo "cryptomount -u $UUID_2"
+echo "cryptomount -u $crypto_uuid"
 
 EOF
-      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label" --modules="luks2 fat part_gpt cryptodisk pbkdf2 gcry_rijndael gcry_sha256 gcry_sha512 btrfs"
-    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
     elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
       :
     fi
-    grub-mkconfig -o /boot/grub/grub.cfg
+    grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/boot --bootloader-id="$BOOTLOADER_label"
+    grub-mkconfig -o /efi/grub/grub.cfg
   }
 
   SYSTEM_09_MISCELLANEOUS() {
