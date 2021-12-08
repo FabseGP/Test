@@ -589,7 +589,7 @@ EOF
 #! /bin/sh
 
 crypto_uuid=$UUID_2
-echo "cryptomount -u $crypto_uuid"
+echo "cryptomount -u $UUID_2"
 
 EOF
     elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
