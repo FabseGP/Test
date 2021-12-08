@@ -585,7 +585,8 @@ EOF
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
-cryptomount -u $UUID_2
+set crypto_uuid=$UUID_2
+cryptomount -u $crypto_uuid
 set root=crypto0
 set prefix=(crypto0)/@/boot/grub
 insmod normal
