@@ -25,7 +25,7 @@
   DRIVE_path_primary="/dev/sda3"
   export BOOT_size="300"
   export BOOT_label="boot"
-  export SWAP_size="8000"
+  export SWAP_size="700"
   export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
   export SWAP_label="swap"
   export PRIMARY_size="∞"
