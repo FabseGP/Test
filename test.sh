@@ -19,37 +19,39 @@
   ADDITIONAL_packages=""
 
   # Drives and partitions + encryption + mountpoint
-  export DRIVE_path="sda"
-  export DRIVE_path_boot="/dev/sda1"
-  export DRIVE_path_swap="/dev/sda2"
-  export DRIVE_path_primary="/dev/sda3"
+  DRIVE_path="sda"
+  DRIVE_path_boot="/dev/sda1"
+  DRIVE_path_swap="/dev/sda2"
+  DRIVE_path_primary="/dev/sda3"
   export BOOT_size="300"
   export BOOT_label="boot"
-  export SWAP_size="700"
-  export SWAP_size_allocated="1000"
-  export SWAP_label="ram_co"
-  export PRIMARY_label="root"
-  export ENCRYPTION_passwd="hallo"
+  export SWAP_size="8000"
+  export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
+  export SWAP_label="swap"
+  export PRIMARY_size="∞"
+  export PRIMARY_label="primary"
+  ENCRYPTION_passwd="insecure"
   MOUNTPOINT=""
 
   # Locals
   export TIMEZONE_1="Europe"
   export TIMEZONE_2="Copenhagen"
   export LANGUAGES_generate="da_DK.UTF-8 en_GB.UTF-8"
-  export LANGUAGE_system="da_DK.UTF-8"
+  export LANGUAGE_system="en_GB.UTF-8"
   export KEYMAP_system="dk-latin1"
-  export HOSTNAME_system="fabse"
+  export HOSTNAME_system="artix"
 
   # Users
+  export ROOT_username="root"
   export ROOT_passwd="root"
-  export USERNAME="fabse"
-  export USER_passwd="fabse"
+  export USERNAME="artix"
+  export USER_passwd="insecure"
 
   # Miscellaneous
-  BOOTLOADER_label=""
-  SNAPSHOT_cronjob_time="" # Default is 13:00:00 local time
-  PACKAGES_additional=""
-  GITHUB_repo=""
+  export BOOTLOADER_label="artix_boot"
+  export SNAPSHOT_cronjob_time="empty" # Default is 13:00:00 local time
+  export PACKAGES_additional="empty"
+  export REPO="empty"
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -107,26 +109,21 @@
         echo -e "\033[97m$2\033[0m"
         ;;
     esac
-  }
-
-#----------------------------------------------------------------------------------------------------------------------------------
-
-# Prints lines to separate each part; also space before and after if specified
-
-  PRINT_LINES() {
-  if [[ "$1" == "SPACE" ]]; then
-    echo
-  fi
-  echo "--------------------------------------------------------------------------------------------------"
-  if [[ "$1" == "SPACE" ]]; then
-    echo
-  fi
 }
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
-# 1) Outputs chosen message with lines that fills the width of your tty + space before and after
-# 2) Outputs text as ASCII-art + piped through lolcat for rainbow colors!
+# Functions to print text / outputs of commands / lines
+
+  PRINT_LINES() {
+  if [[ "$1" == "SPACE" ]]; then
+    echo
+    printf '%0.s-' $(seq 1 "$COLUMNS")
+    echo
+  else
+    printf '%0.s-' $(seq 1 "$COLUMNS")
+  fi
+}
 
   PRINT_MESSAGE() {
     OUTPUT="$*"
@@ -135,41 +132,20 @@
     printf "%*s\n" $(((${#OUTPUT}+$COLUMNS)/2)) "$OUTPUT" | lolcat
     printf '%0.s-' $(seq 1 "$COLUMNS")
     echo
-  }
+}
 
   ASCII_rainbow() {
     figlet -c -t -k "$@" | lolcat && echo
-  }
-
-#----------------------------------------------------------------------------------------------------------------------------------
+}
 
   PRINT_PROGRESS_BAR() {
     local progress_bar="."
     printf "%s" "${progress_bar}"
-  }
-
-#----------------------------------------------------------------------------------------------------------------------------------
-
-# Outputs checkbox, where 1 = [X] = YES and 0 = [ ] = NO
+}
 
   PRINT_CHECKBOX() { 
     [[ "$1" == "1" ]] || [[ "$1" == "true" ]] && echo -e "${BBlue}[${Reset}${Bold}X${BBlue}]${Reset}" || echo -e "${BBlue}[ ${BBlue}]${Reset}";
-  }
-
-#----------------------------------------------------------------------------------------------------------------------------------
-
-# Insure that the script is run as root-user
-
-  if [ -z "$1" ]; then
-    if ! [ "$USER" = 'root' ]; then
-      echo
-      WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
-      PRINT_LINES
-      printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
-      PRINT_LINES
-      exit 1
-    fi
-  fi
+}
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -185,30 +161,58 @@
     "INIT_choice_runit:runit as init" 
     "INIT_choice_openrc:openrc as init" 
     "INIT_choice_dinit:dinit as init" 
+    "BOOTLOADER_choice_grub:GRUB as bootloader"
+    "BOOTLOADER_choice_refind:REFIND as bootloader"
     "SUPERUSER_replace:Replace sudo with doas" 
     "AUR_helper:Install an AUR-helper" 
     "ADDITIONAL_packages:Install additional packages"
     "CUSTOM_script:Pull and execute custom scripts from Github while in chroot"
-   )
+)
 
-  partitions=(
-    "PARTITIONS"
-    "BOOT" 
-    "SWAP"
-    "ROOT"
-   ) 
+  PARTITIONS="VALUE,BOOT-PARTITION (1),SWAP-PARTITION (2),PRIMARY-PARTITION (3)"
+  PARTITIONS_without_swap="VALUE,BOOT-PARTITION (1),PRIMARY-PARTITION (2)"
+  LOCALS="VALUE,TIMEZONE (1),LANGUAGES (2),KEYMAP (3),HOSTNAME (4)"
+  USERS="VALUE,root (1),personal (2)"
+  MISCELLANEOUS="VALUE,BOOTLOADER (1),SNAPSHOTS (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
 
-  settings=(
-    "SETTINGS"
-    "TIMEZONE" 
-    "LANGUAGE/LANGUAGES"
-    "KEYMAP"
-    "HOSTNAME"
-    "USERS"
-    "ADDITIONAL PACKAGES"
-    "BTRFS-SNAPSHOTS TIME"
-    "BOOTLOADER-ID"
-   )
+  read -r -d '' OUTPUT_DRIVES << EOM
+DRIVES
+$(lsblk -o NAME,SIZE)
+EOM
+
+  read -r -d '' OUTPUT_partitions_full << EOM
+$PARTITIONS
+SIZE:,$BOOT_size MB,$SWAP_size MB, $PRIMARY_size MB
+LABEL:,$BOOT_label,$SWAP_label,$PRIMARY_label
+ENCRYPTION-password:,,,$ENCRYPTION_passwd
+EOM
+
+  read -r -d '' OUTPUT_partitions_without_swap << EOM
+$PARTITIONS_without_swap
+SIZE:,$BOOT_size MB, $PRIMARY_size MB
+LABEL:,$BOOT_label,$PRIMARY_label
+ENCRYPTION-password:,,$ENCRYPTION_passwd
+EOM
+
+  read -r -d '' OUTPUT_locals << EOM
+$LOCALS
+GENERATED:,,$LANGUAGES_generate
+SYSTEMWIDE:,$TIMEZONE_1/$TIMEZONE_2,$LANGUAGE_system,$KEYMAP_system,$HOSTNAME_system
+EOM
+
+  read -r -d '' OUTPUT_users << EOM
+$USERS
+USERNAME:,$ROOT_username,$USERNAME
+PASSWORD:,$ROOT_passwd,$USER_passwd
+EOM
+
+  read -r -d '' OUTPUT_miscellaneous << EOM
+$MISCELLANEOUS
+ID:,$BOOTLOADER_label
+TIME:,,$SNAPSHOT_cronjob_time
+PACKAGES:,,,$PACKAGES_additional
+REPO:,,,,$REPO
+EOM
  
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -220,6 +224,8 @@
     "To tailer the installation to your needs, you have the following options: " # Choices for customizing install
     "USAGE: Tapping SPACE reverts the value, while tapping ENTER confirms your choices! " # Usage of text-menu
     "YOU NEED TO CHOOSE ONE OF THE LISTED INIT! " # If none of the init is chosen
+    "YOU NEED TO CHOOSE ONE OF THE LISTED FILESYSTEM! " # If none of the init is chosen
+    "YOU NEED TO CHOOSE ONE OF THE LISTED BOOTLOADER! " # If none of the init is chosen
     "TIME TO FORMAT THESE DRIVES!" # While specifying sizes / labels for the partitions
     "TIME TO ZONE YOUR TIME!" # While configuring the timezone
     "YOU DECIDE YOUR COMPUTERS VOCABULARY!" # While configuring the systemwide language(s)
@@ -230,442 +236,88 @@
     "IF YOU CHOOSE A BAD NAME, YOUR COMPUTER WILL NOT BOOT!" # While setting the bootloader-id
     "BACK TO SQUARE ONE!" # Whenever an command / part of the script has to be run again
     "BE CONSIDERATE TOWARD YOUR COMPUTER!" # While setting the hostname
-  )
+)
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
-# Functions
+# Insure that the script is run as root-user
 
-  # Installs packages required by script
-  SCRIPT_01_REQUIRED_PACKAGES() {
-     if [[ -z "$(pacman -Qs lolcat)" ]]; then
-       printf "%s" "Installing dependencies "
-       local command="pacman -S --noconfirm --needed lolcat figlet parted"
-       $command > /dev/null &
-       while [[ ! $(pacman -Qs lolcat) ]]; do
-         PRINT_PROGRESS_BAR 
-         sleep 1
-       done
-       printf " [%s]\n" "Success!"
-     fi
-   }
-
-  # Customizing your install
-  SCRIPT_02_CUSTOMIZING() {
-    eval "${messages[0]}"
-    MULTISELECT_MENU "${intro[@]}"
-    for ((i=1, j=1, options=1; i < "$COUNT_intro"; i++, j++, options++)); do 
-      VALUE=$(eval echo \$CHOICE_$j)
-      CHOICE=${options[i]}
-      SORTED=${CHOICE%%:*}
-      if [[ "$VALUE" == "true" ]]; then
-        export "$SORTED"="$VALUE"
-      fi	
-    done
-  }
-
-  # If /mnt is mounted (perhaps due to exiting the script before it finished),
-  # then unmount /mnt and deactivate swap (just a precaution)
-  SCRIPT_03_UMOUNT_MNT() {
-    if [[ "$(mountpoint /mnt)" ]]; then
-      swapoff -a
-      umount -R /mnt
-    fi
-  }
-
-  # Installs support for arch-repositories and updates all GPG-keys.
-  # Also enables testing-repositories, parallel downloads and colored outputs by replacing pacman.conf.
-  SCRIPT_04_PACMAN_REPOSITORIES() {
-    if [[ -z "$(pacman -Qs artix-archlinux-support)" ]]; then
-      pacman -S --noconfirm --needed artix-archlinux-support
-      pacman-key --init
-      pacman-key --populate archlinux artix
-      cp pacman.conf /etc/pacman.conf
-      pacman -Syy 
-    fi
-  }
-
-  # Creates GPT-partitions with the following attributes:
-    # Boot-partition = fat32 + bootable
-    # Root-partition = choice of filesystem, either BTRFS or BCACHEFS (if implemented)
-  # If the user has chosen to create an SWAP-partition, it will also be created here
-  SCRIPT_05_CREATE_PARTITIONS() {
-    if [[ "$SWAP_partition" == "true" ]]; then
-      parted --script -a optimal /dev/"$DRIVE_path" \
-        mklabel gpt \
-        mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
-        mkpart SWAP linux-swap "$BOOT_size"MiB "$SWAP_size_allocated"MiB  \
-        mkpart PRIMARY "$FILESYSTEM_primary" "$SWAP_size_allocated"MiB 100% 
-    else
-      parted --script -a optimal /dev/"$DRIVE_path" \
-        mklabel gpt \
-        mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
-        mkpart PRIMARY "$FILESYSTEM_primary" "$BOOT_size"MiB 100% 
-    fi
-  }
-
-  # Since BTRFS lacks native encryption, is it achieved using cryptsetup; the user-inputted
-  # encryption-password is piped through. GRUB finally has (albeit limited) support for luks2,
-  # though limited to pbkdf2 as key-derivation-function.
-  # BCACHEFS supports native encryption, though isn't yet mainlined into the kernel
-  # Formats all drives with chosen name, while also specifying the mountpoints for boot and the 
-  # primary partition. 
-  SCRIPT_06_FORMAT_AND_ENCRYPT_PARTITIONS() {
-    mkfs.vfat -F32 -n "$BOOT_label" "$DRIVE_path_boot" 
-    if [[ "$SWAP_partition" == "true" ]]; then
-      mkswap -L "$SWAP_label" "$DRIVE_path_swap"
-      swapon "$DRIVE_path_swap"
-    fi
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf=pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
-      echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
-      mkfs.btrfs -f -L "$PRIMARY_label" /dev/mapper/cryptroot
-      MOUNTPOINT="/dev/mapper/cryptroot"
-    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
-      MOUNTPOINT="$DRIVE_path_primary"
-    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
-    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
-      bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
-    fi
-  }
-
-  # Also creates subvolumes to avoid taking snapshots of unnecessary paths, 
-  # e.g. /var/*. BCACHEFS-snapshots is supported natively and will be implemented.
-  # Also plain-encrypts the swap-partition if created
-  SCRIPT_07_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
-      cd /mnt || exit
-      for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
-        btrfs subvolume create "${subvolumes[subvolume]}"
-      done
-      cd / || exit
-      umount /mnt
-      mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-      mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
-      printf -v subvolumes_separated '%s,' "${subvolumes[@]}"
-      for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
-        subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-        if [[ "${subvolumes[subvolume]}" == "@" ]]; then
-          :
-        else
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
-        fi
-      done
-      sync
-    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
-      :
-    fi
-    cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/boot/EFI
-    export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
-    export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-  }
- 
-  # Specifies array of packages to install - "fcron-$INIT_choice" also installs fcron, as it's a
-  # dependency. The correct microcode will also be installed depending on the brand of your CPU,
-  # while either sudo or opendoas will be installed depending on your choice
-  SCRIPT_08_BASESTRAP_PACKAGES() {
-  if [[ "$INIT_choice_runit" == "true" ]]; then
-    export INIT_choice="runit"
-  elif [[ "$INIT_choice_openrc" == "true" ]]; then
-    export INIT_choice="openrc"
-  elif [[ "$INIT_choice_dinit" == "true" ]]; then
-    export INIT_choice="dinit"
+  if [ -z "$1" ] && ! [ "$USER" = 'root' ]; then
+    echo
+    WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
+    PRINT_LINES
+    printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
+    PRINT_LINES
+    exit 1
   fi
-  packages=(
-    "$INIT_choice" 
-    "fcron-$INIT_choice"
-    "dhcpcd-$INIT_choice"
-    "chrony-$INIT_choice" 
-    "networkmanager-$INIT_choice"
-    "seatd-$INIT_choice"
-    "pam_rundir"
-    "lolcat"
-    "figlet"
-    "cryptsetup"
-    "libressl"
-    "vim"
-    "neovim"
-    "nano"
-    "realtime-privileges"
-    "base"
-    "base-devel"
-    "linux-zen"
-    "linux-zen-headers"
-    "refind"
-    "gdisk"
-    "os-prober"
-    "efibootmgr"
-    "btrfs-progs"
-    "mkinitcpio"
-    "zstd"
-    "lz4"
-    "bc"
-    "git"
-  )
-    printf -v packages_separated '%s ' "${packages[@]}"
-    if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-      if [[ "$SUPERUSER_replace" == "true" ]]; then
-        basestrap /mnt --needed intel-ucode opendoas $packages_separated
-      else
-        basestrap /mnt --needed intel-ucode sudo $packages_separated
-      fi
-    elif grep -q AMD "/proc/cpuinfo"; then
-      if [[ "$SUPERUSER_replace" == "true" ]]; then
-        basestrap /mnt --needed amd-ucode opendoas $packages_separated
-      else
-        basestrap /mnt --needed amd-ucode sudo $packages_separated
-      fi
-    fi
-  }
-
-  # Generates your systems filesystem table (FSTAB) based on the UUID's of your drives - 
-  # many drives will show given the amount of subvolumes. tmpfs is also explicitly mounted / added
-  # to limit it's size to half the RAM-size, while also limiting program access
-  SCRIPT_09_FSTAB_GENERATION() {
-    fstabgen -U /mnt >> /mnt/etc/fstab
-    if [[ "$SWAP_partition" == "true" ]]; then
-      UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
-      cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
-swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
-EOF
-      sed -i '/swap/c\\/dev\/mapper\/swap  none   swap    defaults   0       0' /mnt/etc/fstab
-    fi
-    cat << EOF | tee -a /mnt/etc/fstab > /dev/null
-tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
-EOF
-  }
-
-  # If chosen in intro-menu, the contents of /MOUNTPOINT/etc/fstab will be printed on the screen
-  # and allows you to ensure that all drives / subvolumes is correctly specified
-  SCRIPT_10_FSTAB_CHECK() {
-    if [[ "$FSTAB_check" == "true" ]]; then
-      fdisk -l
-    fi
-  }
-
-  # All functions (specified in the array) to be executed in chroot is exported to allow chroot-shell
-  # to execute them. Contents of the current folder (such as pacman.conf, paru.conf etc.)
-  # is copied to the CHROOT_directory; default is "/mnt/install_scripts"
-  SCRIPT_11_CHROOT() {
-    mkdir /mnt/install_script
-    cp -- * /mnt/install_script
-    for ((function=0; function < "${#functions[@]}"; function++)); do
-      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
-        export -f "${functions[function]}"
-        artix-chroot /mnt /bin/bash -c "${functions[function]}"
-      fi
-    done
-  }
-
-  SYSTEM_01_LOCALS() {
-    # Timezone
-    if [[ -z "$TIMEZONE_2" ]]; then
-      ln -sf /usr/share/zoneinfo/"$TIMEZONE_1" /etc/localtime
-    else
-      ln -sf /usr/share/zoneinfo/"$TIMEZONE_1"/"$TIMEZONE_2" /etc/localtime
-    fi
-    hwclock --systohc
-    # Language(s)
-    IFS=' ' read -ra LANGUAGES_array <<< "$LANGUAGES_generate"
-    for language in "${LANGUAGES_array[@]}"; do
-      sed -i '/'"$language"'/s/^#//g' /etc/locale.gen
-    done
-    locale-gen
-    echo "LANG="$LANGUAGE_system"" >> /etc/locale.conf
-    echo "LC_ALL="$LANGUAGE_system"" >> /etc/locale.conf
-    # Keymap
-    echo "KEYMAP="$KEYMAP_system"" >> /etc/vconsole.conf
-    if [[ "$INIT_choice" == "openrc" ]]; then
-      echo "KEYMAP="$KEYMAP_system"" >> /etc/conf.d/keymaps
-    fi
-    # Hostname
-    echo "$HOSTNAME_system" >> /etc/hostname
-    if [[ "$INIT_choice" == "openrc" ]]; then
-      echo "hostname='"$HOSTNAME_system"'" >> /etc/conf.d/hostname
-    fi
-    cat << EOF | tee -a /etc/hosts > /dev/null
-127.0.0.1 localhost
-::1 localhost
-127.0.1.1 "$HOSTNAME_system".localdomain "$HOSTNAME_system" 
-EOF
-  }
-
-  SYSTEM_02_USERS() {
-    echo "root:$ROOT_passwd" | chpasswd
-    useradd -m -g users -G "$USER_groups" -p "$(openssl passwd -crypt "$USER_passwd")" "$USERNAME"
-  }
-
-  SYSTEM_03_AUR() {
-    if [[ "$AUR_helper" == "true" ]]; then
-      cd /install_script || exit
-      PARU="$(ls -- *paru*)"
-      pacman -U --noconfirm $PARU
-      pacman -Syu --noconfirm
-      touch /etc/profile.d/alias.sh
-      cat << EOF | tee -a /etc/profile.d/alias.sh > /dev/null    
-# Redirect yay to paru + making rm safer
-alias yay=paru
-alias rm='rm -i'
-EOF
-      touch /home/"$USERNAME"/.bashrc
-      cat << EOF | tee -a /home/"$USERNAME"/.bashrc > /dev/null    
-# Redirect yay to paru + making rm safer
-alias yay=paru
-alias rm='rm -i'
-EOF
-      chmod u+x /etc/profile.d/alias.sh
-      cp paru.conf /etc/paru.conf # Links sudo to doas + more
-    fi
-  }
-
-  SYSTEM_04_ADDITIONAL_PACKAGES() {
-    if [[ "$ADDITIONAL_packages" == "true" ]]; then
-      pacman -S --noconfirm --needed "$PACKAGES_additional"
-    fi
-  }
-
-  SYSTEM_05_SUPERUSER() {
-    if [[ "$SUPERUSER_replace" == "true" ]]; then
-      touch /etc/doas.conf
-      cat << EOF | tee -a /etc/doas.conf > /dev/null
-permit persist :wheel
-EOF
-      chown -c root:root /etc/doas.conf
-      chmod -c 0400 /etc/doas.conf
-    else
-      echo "%wheel ALL=(ALL) ALL" | (EDITOR="tee -a" visudo)
-      if [[ "$AUR_helper" == "true" ]]; then
-        sed -i -e "/Sudo = doas/s/^#*/;/" /etc/paru.conf
-      fi
-    fi 
-  }
-
-  SYSTEM_06_SERVICES() {
-    if [[ "$INIT_choice" == "dinit" ]]; then
-      ln -s ../NetworkManager /etc/dinit.d/boot.d/
-      ln -s ../fcron /etc/dinit.d/boot.d/
-      ln -s ../chrony /etc/dinit.d/boot.d/
-      ln -s ../dhcpcd /etc/dinit.d/boot.d/
-    elif [[ "$INIT_choice" == "runit" ]]; then
-      ln -s /etc/runit/sv/NetworkManager /etc/runit/runsvdir/default
-      ln -s /etc/runit/sv/fcron /etc/runit/runsvdir/default
-      ln -s /etc/runit/sv/chrony /etc/runit/runsvdir/default
-      ln -s /etc/runit/sv/dhcpcd /etc/runit/runsvdir/default
-    elif [[ "$INIT_choice" == "openrc" ]]; then
-      rc-update add NetworkManager
-      rc-update add fcron 
-      rc-update add chrony
-      rc-update add dhcpcd
-    fi
-  }
-
-  SYSTEM_07_INITRAMFS() {
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
-        chmod 600 /.secret/crypto_keyfile.bin
-        chmod 600 /boot/initramfs-linux*
-        echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path_primary" /.secret/crypto_keyfile.bin
-        sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
-      else
-        sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
-      fi
-    fi
-    sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck)/' /etc/mkinitcpio.conf
-    mkinitcpio -p linux-zen
-  }
-
-  SYSTEM_08_BOOTLOADER() {
-   # if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-   #   sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-   #   sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
-   #   sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-   #   sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/boot\/EFI\/grub"/' /etc/default/grub-btrfs/config
-   #   touch /etc/grub.d/01_header
-   #   cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
-#! /bin/sh
-
-#crypto_uuid=$UUID_2
-#echo "cryptomount -u $UUID_2"
-
-#EOF
-   # elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
-    #  :
-    #fi
-   # grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
-   # grub-mkconfig -o /boot/EFI/grub/grub.cfg
-refind-install
-rm -rf /boot/refind_linux.conf
-touch /boot/refind_linux.conf
-    cat << EOF | tee -a /boot/refind_linux.conf > /dev/null # 3 seconds delay, when system login failes
-"Boot with standard options"  "rd.luks.name=$UUID_1=$PRIMARY_label root=UUID=$UUID_1 rootflags=subvol=@ initrd=/intel-ucode.img initrd=/initramfs-linux-zen.img"
-EOF
-  }
-
-  SYSTEM_09_MISCELLANEOUS() {
-    cd /install_script || exit
-    cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
-auth optional pam_faildelay.so delay="$LOGIN_delay"
-EOF
-    cp btrfs_snapshot.sh /.snapshots # Maximum 3 snapshots stored
-    chmod u+x /.snapshots/*
-    #sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
-    if [[ -z "$SNAPSHOT_cronjob_time" ]]; then
-      CRONJOB_snapshots="0 13 * * * /.snapshots/btrfs_snapshot.sh" # Each day at 13:00 local time
-    else
-      CRONJOB_snapshots="0 $SNAPSHOT_cronjob_time * * * /.snapshots/btrfs_snapshot.sh"
-    fi
-    (fcrontab -u root -l; echo "$CRONJOB_snapshots" ) | fcrontab -u root -
-    if [[ "$INIT_choice" == "openrc" ]]; then
-      sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
-      sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
-      sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
-    fi
-  }
-
-  SYSTEM_10_EXTERNAL_SCRIPT() {
-    if [[ "$CUSTOM_script" == "true" ]]; then
-      cd /install_script || exit
-      REPO_folder=$(basename "$GITHUB_repo")
-      git clone "$GITHUB_repo"
-      cd "$REPO_folder" || exit
-      chmod u+x -- *.sh
-      ./.sh
-    fi
-  }
-
-  SYSTEM_11_CLEANUP() {
-    rm -rf /install_script
-  }
-
-  SCRIPT_12_FAREWELL() {
-    if [[ "$ENCRYPTION_partitions" == "true" ]]; then
-      if [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
-        PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
-        PRINT_WITH_COLOR yellow "Though since a keyfile has been added to the partition, you only have to unlock the partition once with the following commands: "
-        echo
-        PRINT_WITH_COLOR white "\"cryptomount -a\" # Unlocks the encrypted partition; the reason is that /boot is encrypted too"
-        PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
-        echo
-      elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-        :
-      fi
-    fi
-    umount -R /mnt
-    exit
-  }
-
-  # Must be the last command in this section to export all defined functions;
-  # MULTISELECT_MENU is not required to be exported
-  mapfile -t functions < <( compgen -A function ) 
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
-# Creates a dynamic multiple-choice menu
+# Functions for printing tables
+
+  PRINT_TABLE() {
+    local -r delimiter="${1}"
+    local -r data="$(REMOVE_EMPTY_LINES "${2}")"
+    if [[ "${delimiter}" != "" ]] && [[ "$(EMPTY_STRING "${data}")" = "false" ]]; then
+      local -r numberOfLines="$(wc -l <<< "${data}")"
+      if [[ "${numberOfLines}" -gt "0" ]]; then
+        local table=""
+        local i=1
+        for ((i = 1; i <= "${numberOfLines}"; i = i + 1)); do
+          local line=""
+          line="$(sed "${i}q;d" <<< "${data}")"
+          local numberOfColumns="0"
+          numberOfColumns="$(awk -F "${delimiter}" '{print NF}' <<< "${line}")"
+          if [[ "${i}" -eq "1" ]]; then
+            table="${table}$(printf '%s#+' "$(REPEAT_STRING '#+' "${numberOfColumns}")")"
+          fi
+          table="${table}\n"
+          local j=1
+          for ((j = 1; j <= "${numberOfColumns}"; j = j + 1)); do
+            table="${table}$(printf '#| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
+          done
+          table="${table}#|\n"
+          if [[ "${i}" -eq "1" ]] || [[ "${numberOfLines}" -gt "1" && "${i}" -eq "${numberOfLines}" ]]; then
+            table="${table}$(printf '%s#+' "$(REPEAT_STRING '#+' "${numberOfColumns}")")"
+          fi
+        done
+        if [[ "$(EMPTY_STRING "${table}")" = "false" ]]; then
+          echo -e "${table}" | column -s '#' -t | awk '/^\+/{gsub(" ", "-", $0)}1'
+        fi
+      fi
+    fi
+}
+
+  REMOVE_EMPTY_LINES() {
+    local -r content="${1}"
+    echo -e "${content}" | sed '/^\s*$/d'
+}
+
+  REPEAT_STRING() {
+    local -r string="${1}"
+    local -r numberToRepeat="${2}"
+    if [[ "${string}" != "" && "${numberToRepeat}" =~ ^[1-9][0-9]*$ ]]; then
+      local -r result="$(printf "%${numberToRepeat}s")"
+      echo -e "${result// /${string}}"
+    fi
+}
+
+  EMPTY_STRING() {
+    local -r string="${1}"
+    if [[ "$(TRIM_STRING "${string}")" = "" ]]; then
+      echo 'true' && return 0
+    fi
+    echo 'false' && return 1
+}
+
+  TRIM_STRING() {
+    local -r string="${1}"
+    sed 's,^[[:blank:]]*,,' <<< "${string}" | sed 's,[[:blank:]]*$,,'
+}
+
+#----------------------------------------------------------------------------------------------------------------------------------
+
+# Functions for printing menu
 
   MULTISELECT_MENU() {
     until [[ "$PROCEED" == "true" ]]; do 
@@ -693,14 +345,7 @@ EOF
       options=("$@")
       if ! [[ "$WRONG" == "true" ]]; then
         selected=()
-        case ${options[0]} in
-          INTRO)
-            PRINT_MESSAGE "${messages[2]}" 
-            ;;
-          PARTITIONS)
-            PRINT_MESSAGE "${messages[5]}" 
-            ;;
-        esac
+        PRINT_MESSAGE "${messages[2]}" 
         PRINT_MESSAGE "${messages[3]}"
         echo
         selected=("true")
@@ -721,7 +366,8 @@ EOF
       cursor_blink_off
       key_input() { 
         local key
-        IFS= read -rsn1 key 2>/dev/null >&2
+        IFS= 
+        read -rsn1 key 2>/dev/null >&2
         if [[ "$key" = "" ]]; then 
           echo enter
         elif [[ "$key" = $'\x20' ]]; then 
@@ -765,40 +411,49 @@ EOF
         print_options $active
         case $(key_input) in
           space)  
-            case ${options[0]} in
-              INTRO)
-                COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
-                COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
-                if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(5|6|7) ]]; then
-                  eval selected[{5..7}]=false
-                  toggle_option $active
-                elif [[ "$BCACHEFS_implemented" == "true" ]] && [[ "$COUNT_filesystem" -eq 1 ]] && [[ "$active" == @(0|1) ]]; then
-                  eval selected[{0..1}]=false
-                  toggle_option $active
-                elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "1" ]]; then
-                  :
-                elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "0" ]]; then
-                  :
-                else
-                  toggle_option $active
-                fi
-                ;;
-            esac
-            ;;
-          enter)  
-            print_options -1; 
             if [[ "${options[0]}" == "INTRO" ]]; then
               COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
               COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
+              COUNT_bootloader=$(grep -o true <<< "${selected[@]:8:2}" | wc -l)
+              if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(5|6|7) ]]; then
+                eval selected[{5..7}]=false
+                toggle_option $active
+              elif [[ "$COUNT_bootloader" -eq 1 ]] && [[ "$active" == @(8|9) ]]; then
+                eval selected[{8..9}]=false
+                toggle_option $active
+              elif [[ "$BCACHEFS_implemented" == "true" ]] && [[ "$COUNT_filesystem" -eq 1 ]] && [[ "$active" == @(0|1) ]]; then
+                eval selected[{0..1}]=false
+                toggle_option $active
+              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "1" ]]; then
+                :
+              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "0" ]]; then
+                :
+              else
+                toggle_option $active
+              fi
+            else
+              toggle_option $active
+            fi
+            ;;
+          enter)  
+            print_options -1 
+            if [[ "${options[0]}" == "INTRO" ]]; then
+              COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
+              COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
+              COUNT_bootloader=$(grep -o true <<< "${selected[@]:8:2}" | wc -l)
               COUNT_intro="${#selected[@]}"
               if [[ "$COUNT_init" == "0" ]]; then
                 WRONG=true
                 echo
-                PRINT_MESSAGE "$MESSAGE_init"
+                PRINT_MESSAGE "${messages[4]}"
               elif [[ "$COUNT_filesystem" == "0" ]]; then
                 WRONG=true
                 echo
-                PRINT_MESSAGE "$MESSAGE_init"
+                PRINT_MESSAGE "${messages[5]}"
+              elif [[ "$COUNT_bootloader" == "0" ]]; then
+                WRONG=true
+                echo
+                PRINT_MESSAGE "${messages[6]}"
               else
                 for ((i=0, j=1; i < ${#selected[@]}; i++, j++)); do
                   VALUE=${selected[$i]}
@@ -831,7 +486,414 @@ EOF
       eval $return_value='("${selected[@]}")'
     done
     PROCEED=false
-  }
+}
+
+#----------------------------------------------------------------------------------------------------------------------------------
+
+# Functions that installs the system
+
+  SCRIPT_01_REQUIRED_PACKAGES() {
+    if [[ -z "$(pacman -Qs lolcat)" ]]; then
+      printf "%s" "Installing dependencies "
+      local command="pacman -S --noconfirm --needed lolcat figlet parted"
+      $command > /dev/null 2>&1 &
+      while [[ ! $(pacman -Qs lolcat) ]]; do
+        PRINT_PROGRESS_BAR 
+        sleep 1
+      done
+      printf " [%s]\n" "Success!"
+    fi
+}
+
+  SCRIPT_02_CHOICES() {
+    eval "${messages[0]}"
+    MULTISELECT_MENU "${intro[@]}"
+    for ((i=1, j=1, options=1; i < "$COUNT_intro"; i++, j++, options++)); do 
+      VALUE=$(eval echo \$CHOICE_$j)
+      CHOICE=${options[i]}
+      SORTED=${CHOICE%%:*}
+      if [[ "$VALUE" == "true" ]]; then
+        export "$SORTED"="$VALUE"
+      fi	
+    done
+    if [[ "$INIT_choice_runit" == "true" ]]; then
+      export INIT_choice="runit"
+    elif [[ "$INIT_choice_openrc" == "true" ]]; then
+      export INIT_choice="openrc"
+    elif [[ "$INIT_choice_dinit" == "true" ]]; then
+      export INIT_choice="dinit"
+    fi
+    if [[ "$BOOTLOADER_choice_grub" == "true" ]]; then
+      export BOOTLOADER_choice="grub"
+      BOOTLOADER_packages="grub grub-btrfs"
+    elif [[ "$BOOTLOADER_choice_refind" == "true" ]]; then
+      export BOOTLOADER_choice="refind"
+      BOOTLOADER_packages="refind"
+    fi
+}
+
+  SCRIPT_03_CUSTOMIZING() {
+    echo "HEJ"
+}
+
+  SCRIPT_04_UMOUNT_MNT() {
+    if [[ "$(mountpoint /mnt)" ]]; then
+      swapoff -a
+      umount -R /mnt
+    fi
+}
+
+  SCRIPT_05_PACMAN_REPOSITORIES() {
+    if [[ -z "$(pacman -Qs artix-archlinux-support)" ]]; then
+      pacman -S --noconfirm --needed artix-archlinux-support
+      pacman-key --init
+      pacman-key --populate archlinux artix
+      cp pacman.conf /etc/pacman.conf
+      pacman -Syy 
+    fi
+}
+
+  SCRIPT_06_CREATE_PARTITIONS() {
+    if [[ "$SWAP_partition" == "true" ]]; then
+      parted --script -a optimal /dev/"$DRIVE_path" \
+        mklabel gpt \
+        mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
+        mkpart SWAP linux-swap "$BOOT_size"MiB "$SWAP_size_allocated"MiB  \
+        mkpart PRIMARY "$FILESYSTEM_primary" "$SWAP_size_allocated"MiB 100% 
+    else
+      parted --script -a optimal /dev/"$DRIVE_path" \
+        mklabel gpt \
+        mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
+        mkpart PRIMARY "$FILESYSTEM_primary" "$BOOT_size"MiB 100% 
+    fi
+}
+
+  SCRIPT_07_FORMAT_AND_ENCRYPT_PARTITIONS() {
+    mkfs.vfat -F32 -n "$BOOT_label" "$DRIVE_path_boot" 
+    if [[ "$SWAP_partition" == "true" ]]; then
+      mkswap -L "$SWAP_label" "$DRIVE_path_swap"
+      swapon "$DRIVE_path_swap"
+    fi
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
+      if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf=pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
+        echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
+      elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
+        echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
+      fi
+      mkfs.btrfs -f -L "$PRIMARY_label" /dev/mapper/cryptroot
+      MOUNTPOINT="/dev/mapper/cryptroot"
+    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      mkfs.btrfs -f -L "$PRIMARY_label" "$DRIVE_path_primary"
+      MOUNTPOINT="$DRIVE_path_primary"
+    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
+      bcachefs format -f --encrypted --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"
+    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
+      bcachefs format -f --compression_type=zstd -L "$PRIMARY_label" "$DRIVE_path_primary"        
+    fi
+}
+
+  SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      subvolumes_command="btrfs subvolume create"
+      UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+      UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
+      export "$UUID_1"
+      export "$UUID_2"
+    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      subvolumes_command="bcachefs subvolume create"
+    fi
+    mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
+    cd /mnt || exit
+    for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
+      $subvolumes_command "${subvolumes[subvolume]}"
+    done
+    cd / || exit
+    umount /mnt
+    mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
+    mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
+    for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
+      subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
+      if [[ "${subvolumes[subvolume]}" != "@" ]]; then
+        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+      fi
+    done
+    sync
+    cd "$BEGINNER_DIR" || exit
+    mount "$DRIVE_path_boot" /mnt/boot/EFI
+}
+ 
+  SCRIPT_09_BASESTRAP_PACKAGES() {
+    packages=(
+      "$INIT_choice" 
+      "fcron-$INIT_choice"
+      "dhcpcd-$INIT_choice"
+      "chrony-$INIT_choice" 
+      "networkmanager-$INIT_choice"
+      "seatd-$INIT_choice"
+      "pam_rundir"
+      "lolcat"
+      "figlet"
+      "bat"
+      "cryptsetup"
+      "libressl"
+      "vim"
+      "neovim"
+      "nano"
+      "realtime-privileges"
+      "base"
+      "base-devel"
+      "linux-zen"
+      "linux-zen-headers"
+      "os-prober"
+      "efibootmgr"
+      "btrfs-progs"
+      "mkinitcpio"
+      "zstd"
+      "lz4"
+      "bc"
+      "git"
+    )
+    printf -v packages_separated '%s ' "${packages[@]}"
+    if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
+      MICROCODE_package="intel-ucode"
+    elif grep -q AMD "/proc/cpuinfo"; then
+      MICROCODE_package="amd-ucode"
+    fi
+    if [[ "$SUPERUSER_replace" == "true" ]]; then
+      basestrap /mnt --needed opendoas $packages_separated $BOOTLOADER_packages $MICROCODE_package
+    else
+      basestrap /mnt --needed sudo $packages_separated $BOOTLOADER_packages $MICROCODE_package
+    fi
+}
+
+  SCRIPT_10_FSTAB_GENERATION() {
+    fstabgen -U /mnt >> /mnt/etc/fstab
+    if [[ "$SWAP_partition" == "true" ]]; then
+      UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
+      cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
+swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
+EOF
+      sed -i '/swap/c\\/dev\/mapper\/swap  none   swap    defaults   0       0' /mnt/etc/fstab
+    fi
+    cat << EOF | tee -a /mnt/etc/fstab > /dev/null
+tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
+EOF
+}
+
+  SCRIPT_11_FSTAB_CHECK() {
+    if [[ "$FSTAB_check" == "true" ]]; then
+      cat /mnt/etc/fstab
+    fi
+}
+
+  SCRIPT_12_CHROOT() {
+    mkdir /mnt/install_script
+    cp -- * /mnt/install_script
+    for ((function=0; function < "${#functions[@]}"; function++)); do
+      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+        export -f "${functions[function]}"
+        artix-chroot /mnt /bin/bash -c "${functions[function]}"
+      fi
+    done
+}
+
+  SYSTEM_01_LOCALS() {
+    # Timezone
+    if [[ -z "$TIMEZONE_2" ]]; then
+      ln -sf /usr/share/zoneinfo/"$TIMEZONE_1" /etc/localtime
+    else
+      ln -sf /usr/share/zoneinfo/"$TIMEZONE_1"/"$TIMEZONE_2" /etc/localtime
+    fi
+    hwclock --systohc
+    # Language(s)
+    IFS=' ' read -ra LANGUAGES_array <<< "$LANGUAGES_generate"
+    for language in "${LANGUAGES_array[@]}"; do
+      sed -i '/'"$language"'/s/^#//g' /etc/locale.gen
+    done
+    locale-gen
+    echo "LANG="$LANGUAGE_system"" >> /etc/locale.conf
+    echo "LC_ALL="$LANGUAGE_system"" >> /etc/locale.conf
+    # Keymap
+    echo "KEYMAP="$KEYMAP_system"" >> /etc/vconsole.conf
+    if [[ "$INIT_choice" == "openrc" ]]; then
+      echo "KEYMAP="$KEYMAP_system"" >> /etc/conf.d/keymaps
+    fi
+    # Hostname
+    echo "$HOSTNAME_system" >> /etc/hostname
+    if [[ "$INIT_choice" == "openrc" ]]; then
+      echo "hostname='"$HOSTNAME_system"'" >> /etc/conf.d/hostname
+    fi
+    cat << EOF | tee -a /etc/hosts > /dev/null
+127.0.0.1 localhost
+::1 localhost
+127.0.1.1 "$HOSTNAME_system".localdomain "$HOSTNAME_system" 
+EOF
+}
+
+  SYSTEM_02_USERS() {
+    echo "$ROOT_username:$ROOT_passwd" | chpasswd
+    useradd -m -g users -G "$USER_groups" -p "$(openssl passwd -crypt "$USER_passwd")" "$USERNAME"
+}
+
+  SYSTEM_03_AUR() {
+    if [[ "$AUR_helper" == "true" ]]; then
+      cd /install_script || exit
+      PARU="$(ls -- *paru*)"
+      pacman -U --noconfirm $PARU
+      pacman -Syu --noconfirm
+      touch /etc/profile.d/alias.sh
+      cat << EOF | tee -a /etc/profile.d/alias.sh > /dev/null    
+# Redirect yay to paru + making rm safer
+alias yay=paru
+alias rm='rm -i'
+EOF
+      touch /home/"$USERNAME"/.bashrc
+      cat << EOF | tee -a /home/"$USERNAME"/.bashrc > /dev/null    
+# Redirect yay to paru + making rm safer
+alias yay=paru
+alias rm='rm -i'
+EOF
+      chmod u+x /etc/profile.d/alias.sh
+      cp paru.conf /etc/paru.conf # Links sudo to doas + more
+    fi
+}
+
+  SYSTEM_04_ADDITIONAL_PACKAGES() {
+    if [[ "$ADDITIONAL_packages" == "true" ]]; then
+      pacman -S --noconfirm --needed "$PACKAGES_additional"
+    fi
+}
+
+  SYSTEM_05_SUPERUSER() {
+    if [[ "$SUPERUSER_replace" == "true" ]]; then
+      touch /etc/doas.conf
+      cat << EOF | tee -a /etc/doas.conf > /dev/null
+permit persist :wheel
+EOF
+      chown -c root:root /etc/doas.conf
+      chmod -c 0400 /etc/doas.conf
+    else
+      echo "%wheel ALL=(ALL) ALL" | (EDITOR="tee -a" visudo)
+      if [[ "$AUR_helper" == "true" ]]; then
+        sed -i -e "/Sudo = doas/s/^#*/;/" /etc/paru.conf
+      fi
+    fi 
+}
+
+  SYSTEM_06_SERVICES() {
+    if [[ "$INIT_choice" == "dinit" ]]; then
+      ln -s ../NetworkManager /etc/dinit.d/boot.d/
+      ln -s ../fcron /etc/dinit.d/boot.d/
+      ln -s ../chrony /etc/dinit.d/boot.d/
+      ln -s ../dhcpcd /etc/dinit.d/boot.d/
+    elif [[ "$INIT_choice" == "runit" ]]; then
+      ln -s /etc/runit/sv/NetworkManager /etc/runit/runsvdir/default
+      ln -s /etc/runit/sv/fcron /etc/runit/runsvdir/default
+      ln -s /etc/runit/sv/chrony /etc/runit/runsvdir/default
+      ln -s /etc/runit/sv/dhcpcd /etc/runit/runsvdir/default
+    elif [[ "$INIT_choice" == "openrc" ]]; then
+      rc-update add NetworkManager
+      rc-update add fcron 
+      rc-update add chrony
+      rc-update add dhcpcd
+    fi
+}
+
+  SYSTEM_07_INITRAMFS() {
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
+      dd bs=512 count=6 if=/dev/random of=/.secret/crypto_keyfile.bin iflag=fullblock
+      chmod 600 /.secret/crypto_keyfile.bin
+      chmod 600 /boot/initramfs-linux*
+      echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path_primary" /.secret/crypto_keyfile.bin
+      sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
+    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
+    fi
+    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+      sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck\ grub-btrfs-overlayfs)/' /etc/mkinitcpio.conf
+    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+      sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck)/' /etc/mkinitcpio.conf
+    fi
+    mkinitcpio -P
+}
+
+  SYSTEM_08_BOOTLOADER() {
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
+      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
+      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
+      sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+      touch /etc/grub.d/01_header
+      cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
+#! /bin/sh
+
+crypto_uuid=$UUID_2
+echo "cryptomount -u $UUID_2"
+
+EOF
+   elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
+     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+     grub-mkconfig -o /boot/EFI/grub/grub.cfg
+   elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+     refind-install
+   fi
+}
+
+  SYSTEM_09_MISCELLANEOUS() {
+    cd /install_script || exit
+    cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
+auth optional pam_faildelay.so delay="$LOGIN_delay"
+EOF
+    cp btrfs_snapshot.sh /.snapshots # Maximum 3 snapshots stored
+    chmod u+x /.snapshots/*
+    sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
+    if [[ -z "$SNAPSHOT_cronjob_time" ]]; then
+      CRONJOB_snapshots="0 13 * * * /.snapshots/btrfs_snapshot.sh" # Each day at 13:00 local time
+    else
+      CRONJOB_snapshots="0 $SNAPSHOT_cronjob_time * * * /.snapshots/btrfs_snapshot.sh"
+    fi
+    (fcrontab -u root -l; echo "$CRONJOB_snapshots" ) | fcrontab -u root -
+    if [[ "$INIT_choice" == "openrc" ]]; then
+      sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
+      sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
+      sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
+    fi
+}
+
+  SYSTEM_10_EXTERNAL_SCRIPT() {
+    if [[ "$CUSTOM_script" == "true" ]]; then
+      cd /install_script || exit
+      REPO_folder=$(basename "$REPO")
+      git clone "$REPO"
+      cd "$REPO_folder" || exit
+      chmod u+x -- *.sh
+      ./.sh
+    fi
+}
+
+  SYSTEM_11_CLEANUP() {
+    rm -rf /install_script
+}
+
+  SCRIPT_13_FAREWELL() {
+    if [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+      PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
+      PRINT_WITH_COLOR yellow "Though since a keyfile has been added to the partition, you only have to unlock the partition once with the following commands: "
+      echo
+      PRINT_WITH_COLOR white "\"cryptomount -a\" # Unlocks the encrypted partition; the reason is that /boot is encrypted too"
+      PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
+      echo
+    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
+      :
+    fi
+    umount -R /mnt
+    exit
+}
+
+  # Must be the last command in this section to export all defined functions;
+  # MULTISELECT_MENU is not required to be exported
+  mapfile -t functions < <( compgen -A function ) 
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -842,8 +904,3 @@ EOF
       "${functions[function]}"
     fi
   done
-
-#----------------------------------------------------------------------------------------------------------------------------------
-
-# Test for me
-
