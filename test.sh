@@ -548,7 +548,11 @@ EOM
       pacman -S --noconfirm --needed artix-archlinux-support
       pacman-key --init
       pacman-key --populate archlinux artix
-      cp pacman.conf /etc/pacman.conf
+      if [[ "$(find /install_script -name pacman.conf)" ]]; then
+        cp /install_script/pacman.conf /etc/pacman.conf
+      else
+        cp pacman.conf /etc/pacman.conf
+      fi
       pacman -Syy 
     fi
 }
