@@ -49,7 +49,7 @@
 
   # Miscellaneous
   export BOOTLOADER_label="artix_boot"
-  export SNAPSHOT_cronjob_time="empty" # Default is 13:00:00 local time
+  export SNAPSHOT_cronjob_time="13:00:00" # Default is 13:00:00 local time
   export PACKAGES_additional="empty"
   export REPO="empty"
 
@@ -539,7 +539,7 @@ EOM
   SCRIPT_04_UMOUNT_MNT() {
     if [[ "$(mountpoint /mnt)" ]]; then
       swapoff -a
-      umount -R /mnt
+      umount -A --recursive /mnt
     fi
 }
 
@@ -597,10 +597,8 @@ EOM
   SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       subvolumes_command="btrfs subvolume create"
-      UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
-      UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-      export "$UUID_1"
-      export "$UUID_2"
+      export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+      export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
     elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       subvolumes_command="bcachefs subvolume create"
     fi
@@ -692,7 +690,10 @@ EOF
     mkdir /mnt/install_script
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions[@]}"; function++)); do
-      if [[ "${functions[function]}" == *"SYSTEM"* ]]; then
+      if [[ "${functions[function]}" == "SCRIPT_05_PACMAN_REPOSITORIES" ]]; then
+        export -f "SCRIPT_05_PACMAN_REPOSITORIES"
+        artix-chroot /mnt /bin/bash -c "SCRIPT_05_PACMAN_REPOSITORIES"
+      elif [[ "${functions[function]}" == *"SYSTEM"* ]]; then      
         export -f "${functions[function]}"
         artix-chroot /mnt /bin/bash -c "${functions[function]}"
       fi
@@ -833,8 +834,8 @@ echo "cryptomount -u $UUID_2"
 
 EOF
    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
-     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --boot-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
-     grub-mkconfig -o /boot/EFI/grub/grub.cfg
+     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+     grub-mkconfig -o /boot/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
      refind-install
    fi
@@ -887,7 +888,6 @@ EOF
     elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
       :
     fi
-    umount -R /mnt
     exit
 }
 
