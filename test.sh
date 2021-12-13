@@ -1,4 +1,5 @@
    #/usr/bin/bash
+   export INIT_choice=runit
    packages=(
       "$INIT_choice" 
       "fcron-$INIT_choice"
