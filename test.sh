@@ -1,5 +1,8 @@
    #/usr/bin/bash
    export INIT_choice=runit
+   
+   export BOOTLOADER_packages="grub grub-btrfs"
+   
    packages=(
       "$INIT_choice" 
       "fcron-$INIT_choice"
@@ -37,4 +40,4 @@
     elif grep -q AMD "/proc/cpuinfo"; then
       export MICROCODE_package="amd-ucode"
     fi
-    basestrap /mnt opendoas $PACKAGES_separated $MICROCODE_package --needed
+    basestrap /mnt opendoas $PACKAGES_separated $MICROCODE_package $BOOTLOADER_packages --needed
