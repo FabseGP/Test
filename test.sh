@@ -727,10 +727,10 @@ EOM
     fi
     if [[ "$BOOTLOADER_choice_grub" == "true" ]]; then
       export BOOTLOADER_choice="grub"
-      BOOTLOADER_packages="grub grub-btrfs"
+      export BOOTLOADER_packages="grub grub-btrfs"
     elif [[ "$BOOTLOADER_choice_refind" == "true" ]]; then
       export BOOTLOADER_choice="refind"
-      BOOTLOADER_packages="refind"
+      export BOOTLOADER_packages="refind"
     fi
 }
 
@@ -827,16 +827,17 @@ EOM
 
   SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      subvolumes_command="btrfs subvolume create"
       export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-    elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      subvolumes_command="bcachefs subvolume create"
     fi
     mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
     cd /mnt || exit
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
-      $subvolumes_command "${subvolumes[subvolume]}"
+      if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+        btrfs subvolume create "${subvolumes[subvolume]}"
+      elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+        bcachefs subvolume create "${subvolumes[subvolume]}"
+      fi
     done
     cd / || exit
     umount /mnt
@@ -887,9 +888,9 @@ EOM
     )
     printf -v packages_separated '%s ' "${packages[@]}"
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-      MICROCODE_package="intel-ucode"
+      export MICROCODE_package="intel-ucode"
     elif grep -q AMD "/proc/cpuinfo"; then
-      MICROCODE_package="amd-ucode"
+      export MICROCODE_package="amd-ucode"
     fi
     if [[ "$SUPERUSER_replace" == "true" ]]; then
       basestrap /mnt --needed opendoas $packages_separated $BOOTLOADER_packages $MICROCODE_package
