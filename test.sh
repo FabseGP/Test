@@ -510,8 +510,6 @@ EOM
         CONFIRM=""
         read -rp "Which drive is to be partitioned?: " DRIVE
         if lsblk -do name | grep -w -q "$DRIVE"; then
-          DRIVE=""
-          CONFIRM="n"
           export DRIVE_path="/dev/"$DRIVE""
           if [[ "$SWAP_partition" == "true" ]]; then
             if [[ "$DRIVE" == "nvme"* ]]; then
@@ -532,6 +530,8 @@ EOM
               export DRIVE_path_primary=""$DRIVE_path"2"
             fi
           fi
+          DRIVE=""
+          CONFIRM="n"
         else 
           CONFIRM="false"
         fi
