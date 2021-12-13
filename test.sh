@@ -7,6 +7,7 @@
   BEGINNER_DIR=$(pwd)
   WRONG=""
   PROCEED=""
+  CONFIRM=""
   
   # Choices during install; either true or nothing (interpreted as false)
   FILESYSTEM_primary="" # Future support for bcachefs once mainlined
@@ -19,18 +20,18 @@
   ADDITIONAL_packages=""
 
   # Drives and partitions + encryption + mountpoint
-  DRIVE_path="sda"
-  DRIVE_path_boot="/dev/sda1"
-  DRIVE_path_swap="/dev/sda2"
-  DRIVE_path_primary="/dev/sda3"
+  DRIVE_path=""
+  DRIVE_path_boot=""
+  DRIVE_path_swap=""
+  DRIVE_path_primary=""
   export BOOT_size="300"
   export BOOT_label="boot"
-  export SWAP_size="700"
+  export SWAP_size="8000"
   export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
   export SWAP_label="swap"
   export PRIMARY_size="∞"
   export PRIMARY_label="primary"
-  ENCRYPTION_passwd="insecure"
+  export ENCRYPTION_passwd="insecure"
   MOUNTPOINT=""
 
   # Locals
@@ -173,47 +174,50 @@
   PARTITIONS_without_swap="VALUE,BOOT-PARTITION (1),PRIMARY-PARTITION (2)"
   LOCALS="VALUE,TIMEZONE (1),LANGUAGES (2),KEYMAP (3),HOSTNAME (4)"
   USERS="VALUE,root (1),personal (2)"
-  MISCELLANEOUS="VALUE,BOOTLOADER (1),SNAPSHOTS (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
+  MISCELLANEOUS=",BOOTLOADER-ID (1),SNAPSHOTS-TIME (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT REPO (4)"
 
-  read -r -d '' OUTPUT_DRIVES << EOM
+#----------------------------------------------------------------------------------------------------------------------------------
+
+# Function to update user-chosen choices when printing
+
+  UPDATE_CHOICES() {
+    read -r -d '' OUTPUT_drives << EOM
 DRIVES
 $(lsblk -o NAME,SIZE)
 EOM
 
-  read -r -d '' OUTPUT_partitions_full << EOM
+    read -r -d '' OUTPUT_partitions_full << EOM
 $PARTITIONS
 SIZE:,$BOOT_size MB,$SWAP_size MB, $PRIMARY_size MB
 LABEL:,$BOOT_label,$SWAP_label,$PRIMARY_label
 ENCRYPTION-password:,,,$ENCRYPTION_passwd
 EOM
 
-  read -r -d '' OUTPUT_partitions_without_swap << EOM
+    read -r -d '' OUTPUT_partitions_without_swap << EOM
 $PARTITIONS_without_swap
 SIZE:,$BOOT_size MB, $PRIMARY_size MB
 LABEL:,$BOOT_label,$PRIMARY_label
 ENCRYPTION-password:,,$ENCRYPTION_passwd
 EOM
 
-  read -r -d '' OUTPUT_locals << EOM
+    read -r -d '' OUTPUT_locals << EOM
 $LOCALS
 GENERATED:,,$LANGUAGES_generate
 SYSTEMWIDE:,$TIMEZONE_1/$TIMEZONE_2,$LANGUAGE_system,$KEYMAP_system,$HOSTNAME_system
 EOM
 
-  read -r -d '' OUTPUT_users << EOM
+    read -r -d '' OUTPUT_users << EOM
 $USERS
 USERNAME:,$ROOT_username,$USERNAME
 PASSWORD:,$ROOT_passwd,$USER_passwd
 EOM
 
-  read -r -d '' OUTPUT_miscellaneous << EOM
+    read -r -d '' OUTPUT_miscellaneous << EOM
 $MISCELLANEOUS
-ID:,$BOOTLOADER_label
-TIME:,,$SNAPSHOT_cronjob_time
-PACKAGES:,,,$PACKAGES_additional
-REPO:,,,,$REPO
+VALUE:,$BOOTLOADER_label,$SNAPSHOT_cronjob_time,$PACKAGES_additional,$REPO
 EOM
- 
+}
+
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Messages to print
@@ -223,6 +227,7 @@ EOM
     "figlet -c -t -k FAREWELL - THIS TIME FOR REAL! | lolcat -a -d 3 && echo" # Goodbye
     "To tailer the installation to your needs, you have the following options: " # Choices for customizing install
     "USAGE: Tapping SPACE reverts the value, while tapping ENTER confirms your choices! " # Usage of text-menu
+    "AM I A JOKE TO YOU?! YOU DIDN'T EVEN BOTHER TO CHOOSE AN INIT, A FILESYSTEM NOR A BOOTLOADER!" # Usage of text-menu
     "YOU NEED TO CHOOSE ONE OF THE LISTED INIT! " # If none of the init is chosen
     "YOU NEED TO CHOOSE ONE OF THE LISTED FILESYSTEM! " # If none of the init is chosen
     "YOU NEED TO CHOOSE ONE OF THE LISTED BOOTLOADER! " # If none of the init is chosen
@@ -442,27 +447,31 @@ EOM
               COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
               COUNT_bootloader=$(grep -o true <<< "${selected[@]:8:2}" | wc -l)
               COUNT_intro="${#selected[@]}"
-              if [[ "$COUNT_init" == "0" ]]; then
-                WRONG=true
+              if [[ "$COUNT_init" == "0" ]] && [[ "$COUNT_filesystem" == "0" ]] && [[ "$COUNT_bootloader" == "0" ]]; then
+                WRONG="true"
                 echo
                 PRINT_MESSAGE "${messages[4]}"
-              elif [[ "$COUNT_filesystem" == "0" ]]; then
-                WRONG=true
+              elif [[ "$COUNT_init" == "0" ]]; then
+                WRONG="true"
                 echo
                 PRINT_MESSAGE "${messages[5]}"
-              elif [[ "$COUNT_bootloader" == "0" ]]; then
-                WRONG=true
+              elif [[ "$COUNT_filesystem" == "0" ]]; then
+                WRONG="true"
                 echo
                 PRINT_MESSAGE "${messages[6]}"
+              elif [[ "$COUNT_bootloader" == "0" ]]; then
+                WRONG="true"
+                echo
+                PRINT_MESSAGE "${messages[7]}"
               else
                 for ((i=0, j=1; i < ${#selected[@]}; i++, j++)); do
                   VALUE=${selected[$i]}
                   export "CHOICE_$j"="$VALUE"
                 done
-                PROCEED=true
+                PROCEED="true"
               fi
             else
-              PROCEED=true
+              PROCEED="true"
             fi
             break
             ;;
@@ -485,7 +494,200 @@ EOM
       cursor_blink_on
       eval $return_value='("${selected[@]}")'
     done
-    PROCEED=false
+    PROCEED="false"
+}
+
+#----------------------------------------------------------------------------------------------------------------------------------
+
+# Functions for customizing install
+
+  CUSTOMIZING_INSTALL() {
+    while [[ "$CONFIRM" != "n" ]]; do
+      PROCEED="false"
+      echo
+      IFS=
+      if [[ "$1" == "DRIVES" ]]; then
+        CONFIRM=""
+        read -rp "Which drive is to be partitioned?: " DRIVE
+        if lsblk -do name | grep -w -q "$DRIVE"; then
+          DRIVE=""
+          CONFIRM="n"
+        else
+          DRIVE_path=/dev/"$DRIVE"
+          if [[ "$SWAP_partition" == "true" ]]; then
+            if [[ "$DRIVE" == "nvme"* ]]; then
+              export DRIVE_path_boot=""$DRIVE_path"p1"
+              export DRIVE_path_swap=""$DRIVE_path"p2"
+              export DRIVE_path_primary=""$DRIVE_path"p3"
+            else
+              export DRIVE_path_boot=""$DRIVE_path"1"
+              export DRIVE_path_swap=""$DRIVE_path"2"
+              export DRIVE_path_primary=""$DRIVE_path"3"
+            fi
+          else 
+            if [[ "$DRIVE" == "nvme"* ]]; then
+              export DRIVE_path_boot=""$DRIVE_path"p1"
+              export DRIVE_path_primary=""$DRIVE_path"p2"
+            else
+              export DRIVE_path_boot=""$DRIVE_path"1"
+              export DRIVE_path_primary=""$DRIVE_path"2"
+            fi
+          fi
+        fi
+      else
+        read -rp "Anything to modify? (Y|n) " CONFIRM
+      fi
+      echo
+      if [[ "$CONFIRM" == "Y" ]] || [[ "$CONFIRM" == "" ]]; then	
+        if [[ "$1" == "DRIVES" ]]; then
+          DRIVE=""
+          CONFIRM="n"
+        elif [[ "$1" == "PARTITIONS_full" ]] || [[ "$1" == "PARTITIONS_without_swap" ]]; then
+          read -rp "Partition(s) to modify (e.g. \"1,2\"): " partition
+          echo
+          IFS=','
+          read -ra user_choices <<< "$partition"
+          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+            case ${user_choices[$val]} in
+              1)           
+                read -rp "BOOT-partition size: " BOOT_size_export
+                read -rp "BOOT-partition label: " BOOT_label_export
+                export BOOT_size=$BOOT_size_export
+                export BOOT_label=$BOOT_label_export
+                echo
+                ;;
+              2)
+                if [[ "$SWAP_partition" == "true" ]]; then
+                  read -rp "SWAP-partition size: " SWAP_size_export
+                  read -rp "SWAP-partition label: " SWAP_label_export
+                  export SWAP_size=$SWAP_size_export
+                  export SWAP_label=$SWAP_label_export
+                  echo
+                else
+                  read -rp "PRIMARY-label: " PRIMARY_label_export
+                  if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+                    read -rp "Encryption-passwd: " ENCRYPTION_passwd_export
+                    export ENCRYPTION_passwd=$ENCRYPTION_passwd_export
+                  fi
+                  export PRIMARY_label=$PRIMARY_label_export
+                fi
+                ;;
+              3)
+                read -rp "PRIMARY-label: " PRIMARY_label
+                if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+                  read -rp "Encryption-passwd: " ENCRYPTION_passwd_export
+                  export ENCRYPTION_passwd=$ENCRYPTION_passwd_export
+                fi
+                export PRIMARY_label=$PRIMARY_label_export
+                ;;
+            esac
+          done
+          echo
+          UPDATE_CHOICES
+          if [[ "$SWAP_partition" == "true" ]]; then
+            PRINT_TABLE ',' "$OUTPUT_partitions_full"
+          else
+            PRINT_TABLE ',' "$OUTPUT_partitions_without_swap"
+          fi
+        elif [[ "$1" == "LOCALS" ]]; then
+          read -rp "Option to modify (e.g. \"1,2\"): " local
+          echo
+          IFS=','
+          read -ra user_choices <<< "$local"
+          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+            case ${user_choices[$val]} in
+              1)           
+                read -rp "TIMEZONE_1: " TIMEZONE_1_export
+                read -rp "TIMEZONE_2: " TIMEZONE_2_export
+                export TIMEZONE_1=$TIMEZONE_1_export
+                export TIMEZONE_2=$TIMEZONE_2_export
+                echo
+                ;;
+              2)
+                read -rp "Languages to generate (separated by comma): " LANGUAGES_generate_export
+                read -rp "Systemwide language: " LANGUAGE_system_export
+                export LANGUAGES_generate=$LANGUAGES_generate_export
+                export LANGUAGE_system=$LANGUAGE_system_export
+                echo
+                ;;
+              3)
+                read -rp "Systemwide keymap: " KEYMAP_system_export
+                export KEYMAP_system=$KEYMAP_system_export
+                echo
+                ;;
+              4)
+                read -rp "Name to host: " HOSTNAME_system_export
+                export HOSTNAME_system=$HOSTNAME_system_export
+                ;;
+            esac
+          done
+          echo
+          UPDATE_CHOICES
+          PRINT_TABLE ',' "$OUTPUT_locals"
+        elif [[ "$1" == "USERS" ]]; then
+          read -rp "User to modify (e.g. \"1,2\"): " user
+          echo
+          IFS=','
+          read -ra user_choices <<< "$user"
+          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+            case ${user_choices[$val]} in
+              1)           
+                read -rp "Password for root: " ROOT_passwd_export
+                export ROOT_passwd=$ROOT_passwd_export
+                echo
+                ;;
+              2)
+                read -rp "Username for personal user: " USERNAME_export
+                read -rp "Password for personal user: " USER_passwd_export
+                export USERNAME=$USERNAME_export
+                export USER_passwd=$USER_passwd_export
+                ;;
+            esac
+          done
+          echo
+          UPDATE_CHOICES
+          PRINT_TABLE ',' "$OUTPUT_users"
+        elif [[ "$1" == "MISCELLANEOUS" ]]; then
+          read -rp "Option to modify (e.g. \"1,2\"): " option
+          echo
+          IFS=','
+          read -ra user_choices <<< "$option"
+          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+            case ${user_choices[$val]} in
+              1)           
+                read -rp "BOOTLOADER-ID: " BOOTLOADER_label_export 
+                export BOOTLOADER_label=$BOOTLOADER_label_export
+                echo
+                ;;
+              2)
+                read -rp "Time (hour of day) for daily snapshots: " SNAPSHOT_cronjob_time_export 
+                export SNAPSHOT_cronjob_time=$SNAPSHOT_cronjob_time_export
+                echo
+                ;;
+              3)
+                if [[ "$ADDITIONAL_packages" == "true" ]]; then
+                  read -rp "Additional packages to install: " PACKAGES_additional_export 
+                  export PACKAGES_additional=$PACKAGES_additional_export
+                  echo
+                fi
+                ;;
+              4)
+                if [[ "$CUSTOM_script" == "true" ]]; then
+                  read -rp "Link to external repo: " REPO_export 
+                  export REPO=$REPO_export
+                fi
+                ;;
+            esac
+          done
+          echo
+          UPDATE_CHOICES
+          PRINT_TABLE ',' "$OUTPUT_miscellaneous"
+        fi
+      elif [[ "$CONFIRM" != "n" ]]; then
+        echo "WRONG CHOICE!"
+      fi
+    done
+    CONFIRM=""
 }
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -508,13 +710,11 @@ EOM
   SCRIPT_02_CHOICES() {
     eval "${messages[0]}"
     MULTISELECT_MENU "${intro[@]}"
-    for ((i=1, j=1, options=1; i < "$COUNT_intro"; i++, j++, options++)); do 
+    for ((i=1, j=1, option=1; i < "$COUNT_intro"; i++, j++, option++)); do 
       VALUE=$(eval echo \$CHOICE_$j)
       CHOICE=${options[i]}
       SORTED=${CHOICE%%:*}
-      if [[ "$VALUE" == "true" ]]; then
-        export "$SORTED"="$VALUE"
-      fi	
+      export $SORTED=$VALUE	
     done
     if [[ "$INIT_choice_runit" == "true" ]]; then
       export INIT_choice="runit"
@@ -533,7 +733,32 @@ EOM
 }
 
   SCRIPT_03_CUSTOMIZING() {
-    echo "HEJ"
+    UPDATE_CHOICES
+    PRINT_TABLE '@' "$OUTPUT_drives"
+    CUSTOMIZING_INSTALL DRIVES
+    if [[ "$ENCRYPTION_partitions" == "false" ]]; then
+      export ENCRYPTION_passwd="IGNORED"
+    fi
+    if [[ "$ADDITIONAL_packages" == "false" ]]; then
+      export PACKAGES_additional="IGNORED"
+    fi
+    if [[ "$CUSTOM_script" == "false" ]]; then
+      export REPO="IGNORED"
+    fi
+    UPDATE_CHOICES
+    if [[ "$SWAP_partition" == "true" ]]; then
+      PRINT_TABLE ',' "$OUTPUT_partitions_full"
+      CUSTOMIZING_INSTALL PARTITIONS_full
+    else
+      PRINT_TABLE ',' "$OUTPUT_partitions_without_swap"
+      CUSTOMIZING_INSTALL PARTITIONS_without_swap
+    fi
+    PRINT_TABLE ',' "$OUTPUT_locals"
+    CUSTOMIZING_INSTALL LOCALS
+    PRINT_TABLE ',' "$OUTPUT_users"
+    CUSTOMIZING_INSTALL USERS
+    PRINT_TABLE ',' "$OUTPUT_miscellaneous"
+    CUSTOMIZING_INSTALL MISCELLANEOUS
 }
 
   SCRIPT_04_UMOUNT_MNT() {
@@ -634,6 +859,7 @@ EOM
       "chrony-$INIT_choice" 
       "networkmanager-$INIT_choice"
       "seatd-$INIT_choice"
+      "cryptsetup-$INIT_choice"
       "pam_rundir"
       "lolcat"
       "figlet"
@@ -677,11 +903,21 @@ EOM
       cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
 swap     UUID=$UUID_swap  /dev/urandom  swap,offset=2048,cipher=aes-xts-plain64,size=512
 EOF
-      sed -i '/swap/c\\/dev\/mapper\/swap  none   swap    defaults   0       0' /mnt/etc/fstab
-    fi
-    cat << EOF | tee -a /mnt/etc/fstab > /dev/null
+      cat << EOF | tee -a /mnt/etc/fstab > /dev/null
+# /dev/sda2 SWAP
+/dev/mapper/swap	none	swap	defaults	0	0
+
+# Temporary filesystem
 tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
+
 EOF
+  else
+      cat << EOF | tee -a /mnt/etc/fstab > /dev/null
+# Temporary filesystem
+tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
+
+EOF
+  fi
 }
 
   SCRIPT_11_FSTAB_CHECK() {
@@ -761,7 +997,7 @@ alias yay=paru
 alias rm='rm -i'
 EOF
       chmod u+x /etc/profile.d/alias.sh
-      cp paru.conf /etc/paru.conf # Links sudo to doas + more
+      cp /install_script/paru.conf /etc/paru.conf # Links sudo to doas + more
     fi
 }
 
@@ -882,21 +1118,18 @@ EOF
 }
 
   SCRIPT_13_FAREWELL() {
-    if [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$FILESYSTEM_primary" == "btrfs" ]]; then
+    if [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$FILESYSTEM_primary" == "btrfs" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
       PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
       PRINT_WITH_COLOR yellow "Though since a keyfile has been added to the partition, you only have to unlock the partition once with the following commands: "
       echo
       PRINT_WITH_COLOR white "\"cryptomount -a\" # Unlocks the encrypted partition; the reason is that /boot is encrypted too"
       PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
       echo
-    elif [[ "$FILESYSTEM_primary" == "bcachefs" ]]; then
-      :
     fi
     exit
 }
 
-  # Must be the last command in this section to export all defined functions;
-  # MULTISELECT_MENU is not required to be exported
+  # Must be the last command in this section to export all defined functions
   mapfile -t functions < <( compgen -A function ) 
 
 #----------------------------------------------------------------------------------------------------------------------------------
