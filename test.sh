@@ -573,7 +573,7 @@ EOM
                 fi
                 ;;
               3)
-                read -rp "PRIMARY-label: " PRIMARY_label
+                read -rp "PRIMARY-label: " PRIMARY_label_export
                 if [[ "$ENCRYPTION_partitions" == "true" ]]; then
                   read -rp "Encryption-passwd: " ENCRYPTION_passwd_export
                   export ENCRYPTION_passwd=$ENCRYPTION_passwd_export
