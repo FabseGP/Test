@@ -513,7 +513,7 @@ EOM
           DRIVE=""
           CONFIRM="n"
         else
-          DRIVE_path=/dev/"$DRIVE"
+          export DRIVE_path=/dev/"$DRIVE"
           if [[ "$SWAP_partition" == "true" ]]; then
             if [[ "$DRIVE" == "nvme"* ]]; then
               export DRIVE_path_boot=""$DRIVE_path"p1"
@@ -784,13 +784,13 @@ EOM
 
   SCRIPT_06_CREATE_PARTITIONS() {
     if [[ "$SWAP_partition" == "true" ]]; then
-      parted --script -a optimal /dev/"$DRIVE_path" \
+      parted --script -a optimal "$DRIVE_path" \
         mklabel gpt \
         mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
         mkpart SWAP linux-swap "$BOOT_size"MiB "$SWAP_size_allocated"MiB  \
         mkpart PRIMARY "$FILESYSTEM_primary" "$SWAP_size_allocated"MiB 100% 
     else
-      parted --script -a optimal /dev/"$DRIVE_path" \
+      parted --script -a optimal "$DRIVE_path" \
         mklabel gpt \
         mkpart BOOT fat32 1MiB "$BOOT_size"MiB set 1 ESP on \
         mkpart PRIMARY "$FILESYSTEM_primary" "$BOOT_size"MiB 100% 
