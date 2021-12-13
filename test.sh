@@ -1,4 +1,5 @@
    #/usr/bin/bash
+   hej() {
    export INIT_choice=runit
    
    export BOOTLOADER_packages="grub grub-btrfs"
@@ -41,3 +42,5 @@
       export MICROCODE_package="amd-ucode"
     fi
     basestrap /mnt opendoas $PACKAGES_separated $MICROCODE_package $BOOTLOADER_packages --needed
+}
+hej
