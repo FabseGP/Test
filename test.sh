@@ -886,16 +886,17 @@ EOM
       "bc"
       "git"
     )
-    printf -v packages_separated '%s ' "${packages[@]}"
+    printf -v PACKAGES_separated '%s ' "${packages[@]}"
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       export MICROCODE_package="intel-ucode"
     elif grep -q AMD "/proc/cpuinfo"; then
       export MICROCODE_package="amd-ucode"
     fi
+    PACKAGES_install="$PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package"
     if [[ "$SUPERUSER_replace" == "true" ]]; then
-      basestrap /mnt --needed opendoas $packages_separated $BOOTLOADER_packages $MICROCODE_package
+      basestrap /mnt --needed opendoas $PACKAGES_install
     else
-      basestrap /mnt --needed sudo $packages_separated $BOOTLOADER_packages $MICROCODE_package
+      basestrap /mnt --needed sudo $PACKAGES_install
     fi
 }
 
