@@ -562,6 +562,7 @@ EOM
                   read -rp "SWAP-partition label: " SWAP_label_export
                   export SWAP_size=$SWAP_size_export
                   export SWAP_label=$SWAP_label_export
+                  export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
                   echo
                 else
                   read -rp "PRIMARY-label: " PRIMARY_label_export
