@@ -892,11 +892,10 @@ EOM
     elif grep -q AMD "/proc/cpuinfo"; then
       export MICROCODE_package="amd-ucode"
     fi
-    PACKAGES_install="$PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package"
     if [[ "$SUPERUSER_replace" == "true" ]]; then
-      basestrap /mnt --needed opendoas $PACKAGES_install
+      basestrap /mnt opendoas $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package --needed
     else
-      basestrap /mnt --needed sudo $PACKAGES_install
+      basestrap /mnt sudo $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package --needed
     fi
 }
 
