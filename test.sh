@@ -512,7 +512,6 @@ EOM
         if lsblk -do name | grep -w -q "$DRIVE"; then
           DRIVE=""
           CONFIRM="n"
-        else
           export DRIVE_path="/dev/"$DRIVE""
           if [[ "$SWAP_partition" == "true" ]]; then
             if [[ "$DRIVE" == "nvme"* ]]; then
@@ -533,6 +532,8 @@ EOM
               export DRIVE_path_primary=""$DRIVE_path"2"
             fi
           fi
+        else 
+          CONFIRM="false"
         fi
       else
         read -rp "Anything to modify? (Y|n) " CONFIRM
