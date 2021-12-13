@@ -513,7 +513,7 @@ EOM
           DRIVE=""
           CONFIRM="n"
         else
-          export DRIVE_path=/dev/"$DRIVE"
+          export DRIVE_path="/dev/"$DRIVE""
           if [[ "$SWAP_partition" == "true" ]]; then
             if [[ "$DRIVE" == "nvme"* ]]; then
               export DRIVE_path_boot=""$DRIVE_path"p1"
