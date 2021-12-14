@@ -342,7 +342,8 @@ EOM
         printf "$2  $ESC[7m $1 $ESC[27m" 
       }
       get_cursor_row() { 
-        IFS=';' read -rsdR -p $'\E[6n' ROW COL
+        IFS=';' 
+        read -rsdR -p $'\E[6n' ROW COL
         echo "${ROW#*[}"
       }
       return_value="result"
@@ -1296,7 +1297,7 @@ EOF
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2\ fat\ part_gpt\ cryptodisk\ pbkdf2\ gcry_rijndael\ gcry_sha256\ gcry_sha512\ btrfs"/' /etc/default/grub
+      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       touch /etc/grub.d/01_header
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
@@ -1306,6 +1307,8 @@ crypto_uuid=$UUID_2
 echo "cryptomount -u $UUID_2"
 
 EOF
+     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+     grub-mkconfig -o /boot/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
      grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
      grub-mkconfig -o /boot/grub/grub.cfg
