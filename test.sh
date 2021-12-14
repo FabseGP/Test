@@ -606,10 +606,8 @@ EOM
   KEYMAP_check() {
     if ! [[ $(loadkeys "$KEYMAP_system_export") ]] && ! [[ "$KEYMAP_system_export" == "" ]]; then
       PRINT_MESSAGE "Illegal keymap!" 
-    elif [[ "$KEYMAP_system_export" == "" ]]; then  
-      PROCEED="true"
-    else
-      export KEYMAP_system=$KEYMAP_system_export
+    elif [[ "$KEYMAP_system_export" == "" ]] || [[ $(loadkeys "$KEYMAP_system_export") ]]; then 
+      export KEYMAP_system=$KEYMAP_system_export 
       PROCEED="true"
     fi
 }
@@ -799,7 +797,9 @@ EOM
                 until [[ "$PROCEED" == "true" ]]; do
                   read -rp "Comma-separated languages to generate (leave empty for default): " LANGUAGES_generate_export
                   LANGUAGE_check generate
-                  PROCEED="false"
+                done
+                PROCEED="false"
+                until [[ "$PROCEED" == "true" ]]; do
                   read -rp "Systemwide language (leave empty for default): " LANGUAGE_system_export
                   LANGUAGE_check system
                 done
