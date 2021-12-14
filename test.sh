@@ -580,7 +580,7 @@ EOM
       read -ra languages <<< "$LANGUAGES_generate_export"
       if ! [[ "$LANGUAGES_generate_export" == "" ]]; then
         for ((val=0; val < "${#languages[@]}"; val++)); do 
-          if [[ $(grep -Fxq "#${languages[$val]} UTF-8  " /etc/locale.gen) ]]; then
+          if grep -Eq "#${languages[$val]} UTF-8" /etc/locale.gen; then
             PROCEED="true"
           else
             PRINT_MESSAGE "Illegal languages!"   
