@@ -583,7 +583,7 @@ EOM
           if grep -Eq "#${languages[$val]} UTF-8" /etc/locale.gen; then
             PROCEED="true"
           else
-            PRINT_MESSAGE "Illegal language: "${languages[$val]}""   
+            PRINT_MESSAGE "Illegal language: \""${languages[$val]}\"""   
             PROCEED="false"  
           fi
         done
@@ -592,7 +592,7 @@ EOM
         PROCEED="true"
       fi
     elif [[ "$1" == "system" ]]; then
-      if [[ $(grep -Fxq "#$LANGUAGE_system_export UTF-8  " /etc/locale.gen) ]] && ! [[ "$LANGUAGES_generate_export" == "" ]]; then 
+      if [[ $(grep -Eq "#$LANGUAGE_system_export UTF-8" /etc/locale.gen) ]] && ! [[ "$LANGUAGES_generate_export" == "" ]]; then 
         PROCEED="true"
         export LANGUAGE_system=$LANGUAGE_system_export
       elif [[ "$LANGUAGE_system_export" == "" ]]; then
