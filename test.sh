@@ -583,7 +583,7 @@ EOM
           if grep -Eq "#${languages[$val]} UTF-8" /etc/locale.gen; then
             PROCEED="true"
           else
-            PRINT_MESSAGE "Illegal languages!"   
+            PRINT_MESSAGE "Illegal language: "${languages[$val]}""   
             PROCEED="false"  
           fi
         done
