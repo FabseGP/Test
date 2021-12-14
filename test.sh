@@ -513,23 +513,16 @@ EOM
           echo
           PROCEED="false"
         else
+          export BOOT_size=$DRIVE_size
           PROCEED="true"
         fi
       else
+        export SWAP_size=$DRIVE_size
+        export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
         PROCEED="true"
       fi
     else
-      if [[ "$DRIVE_size" ]]; then
-        if [[ "${user_choices[$val]}" == "1" ]]; then
-          export BOOT_size=$DRIVE_size
-        elif [[ "${user_choices[$val]}" == "2" ]] && [[ "$SWAP_partition" == "true" ]]; then
-          export SWAP_size=$DRIVE_size
-          export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
-        fi
-        PROCEED="true"
-      else
-        PROCEED="true"
-      fi
+      PROCEED="true"
     fi
 }
 
@@ -540,10 +533,6 @@ EOM
         PRINT_MESSAGE "Maximum 11 characters is allowed for FAT32!"
         PROCEED="false"
       else
-        PROCEED="true"
-      fi
-    else
-      if [[ "$DRIVE_label" ]]; then
         if [[ "${user_choices[$val]}" == "1" ]]; then
           export BOOT_label=$DRIVE_label
         elif [[ "${user_choices[$val]}" == "2" ]]; then
@@ -556,9 +545,9 @@ EOM
           export PRIMARY_label=$DRIVE_label
         fi
         PROCEED="true"
-      else
-        PROCEED="true"
       fi
+    else
+      PROCEED="true"
     fi
 }
 
