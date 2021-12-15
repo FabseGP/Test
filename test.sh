@@ -1073,7 +1073,7 @@ EOM
     cd / || exit
     umount /mnt
     mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-    mkdir -p /mnt/{boot/EFI,home,srv,var,opt,tmp,.snapshots,.secret}
+    mkdir -p /mnt/{boot,efi,home,srv,var,opt,tmp,.snapshots,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
       if [[ "${subvolumes[subvolume]}" != "@" ]]; then
@@ -1082,7 +1082,7 @@ EOM
     done
     sync
     cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/boot/EFI
+    mount "$DRIVE_path_boot" /mnt/efi
 }
  
   SCRIPT_09_BASESTRAP_PACKAGES() {
@@ -1273,6 +1273,7 @@ EOF
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       touch /etc/grub.d/01_header
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
 #! /bin/sh
@@ -1281,11 +1282,12 @@ crypto_uuid=$UUID_2
 echo "cryptomount -u $UUID_2"
 
 EOF
-     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
+     grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
      grub-mkconfig -o /boot/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
-     grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id="$BOOTLOADER_label"
-     grub-mkconfig -o /boot/grub/grub.cfg
+     sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+     grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
+     grub-mkconfig -o /efi/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
      refind-install
    fi
