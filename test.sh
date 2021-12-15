@@ -232,15 +232,9 @@ EOM
     "YOU NEED TO CHOOSE ONE OF THE LISTED FILESYSTEM! " # If none of the init is chosen
     "YOU NEED TO CHOOSE ONE OF THE LISTED BOOTLOADER! " # If none of the init is chosen
     "TIME TO FORMAT THESE DRIVES!" # While specifying sizes / labels for the partitions
-    "TIME TO ZONE YOUR TIME!" # While configuring the timezone
-    "YOU DECIDE YOUR COMPUTERS VOCABULARY!" # While configuring the systemwide language(s)
-    "THAT KEY MUST BE MAPPED!" # While configuring the systemwide keymap
+    "TIME TO LOCALIZE YOUR SYSTEM!" # While configuring locals
     "WE CAN ALL BENEFIT FROM MORE USERS!" # While configuring the users
-    "TIME TO PACK UP!" # Installing packages
-    "DISCLAIMER: NOT AN ACTUAL SHOT!" # While specifying the time for which snapshots will be taken
-    "IF YOU CHOOSE A BAD NAME, YOUR COMPUTER WILL NOT BOOT!" # While setting the bootloader-id
-    "BACK TO SQUARE ONE!" # Whenever an command / part of the script has to be run again
-    "BE CONSIDERATE TOWARD YOUR COMPUTER!" # While setting the hostname
+    "TIME TO PACK UP!" # When configuring miscellaneous options
 )
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -991,10 +985,13 @@ EOM
       PRINT_TABLE ',' "$OUTPUT_partitions_without_swap"
       CUSTOMIZING_INSTALL PARTITIONS_without_swap
     fi
+    PRINT_MESSAGE "${messages[9]}" 
     PRINT_TABLE ',' "$OUTPUT_locals"
     CUSTOMIZING_INSTALL LOCALS
+    PRINT_MESSAGE "${messages[10]}" 
     PRINT_TABLE ',' "$OUTPUT_users"
     CUSTOMIZING_INSTALL USERS
+    PRINT_MESSAGE "${messages[11]}" 
     PRINT_TABLE ',' "$OUTPUT_miscellaneous"
     CUSTOMIZING_INSTALL MISCELLANEOUS
 }
