@@ -1283,7 +1283,7 @@ echo "cryptomount -u $UUID_2"
 
 EOF
      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
-     grub-mkconfig -o /boot/grub/grub.cfg
+     grub-mkconfig -o /efi/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
