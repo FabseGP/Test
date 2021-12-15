@@ -1088,9 +1088,9 @@ EOM
   SCRIPT_09_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
-		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
-                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs efibootmgr os-prober \
-                   base base-devel linux-zen linux-zen-headers
+		   apparmor-$INIT_choice pam_rundir lolcat figlet bat cryptsetup libressl  \
+                   vim neovim nano git realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs \
+                   efibootmgr os-prober base base-devel linux-zen linux-zen-headers
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1271,9 +1271,13 @@ EOF
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2/' /etc/default/grub
-      sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
+      cat << EOF | tee -a /etc/default/grub > /dev/null
+
+# Uncomment to enable booting from LUKS encrypted devices
+GRUB_ENABLE_CRYPTODISK="true"
+
+EOF
       touch /etc/grub.d/01_header
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
 #! /bin/sh
@@ -1282,10 +1286,10 @@ crypto_uuid=$UUID_2
 echo "cryptomount -u $UUID_2"
 
 EOF
-     grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
-     grub-mkconfig -o /efi/grub/grub.cfg
-   elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
+   fi
+   if [[ "$BOOTLOADER_choice" == "grub" ]]; then
      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+     sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
      grub-mkconfig -o /efi/grub/grub.cfg
    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
