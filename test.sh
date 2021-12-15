@@ -5,6 +5,7 @@
   # Static
   COLUMNS=$(tput cols) 
   BEGINNER_DIR=$(pwd)
+  RAM_size="$(($(free -g | grep Mem: | awk '{print $2}') + 1))"
   WRONG=""
   PROCEED=""
   CONFIRM=""
@@ -26,7 +27,7 @@
   DRIVE_path_primary=""
   export BOOT_size="300"
   export BOOT_label="BOOT"
-  export SWAP_size="8000"
+  export SWAP_size="$(($RAM_size * 1000))"
   export SWAP_size_allocated=$(("$SWAP_size"+"$BOOT_size"))
   export SWAP_label="RAM_co"
   export PRIMARY_size="∞"
@@ -73,7 +74,7 @@
   )
 
   # Size of tmpfs (/tmp) 
-  RAM_size="$((($(free -g | grep Mem: | awk '{print $2}') + 1) / 2))G" # tmpfs will fill half the RAM-size
+  RAM_size_G_half="$(($RAM_size / 2))G" # tmpfs will fill half the RAM-size
 
   # Groups which user is added to 
   export USER_groups="video,audio,seatd,input,power,storage,optical,lp,scanner,dbus,daemon,disk,uucp,wheel,realtime"
@@ -1128,9 +1129,9 @@ EOM
       export MICROCODE_package="amd-ucode"
     fi
     if [[ "$SUPERUSER_replace" == "true" ]]; then
-      basestrap /mnt opendoas $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package --needed
+      basestrap /mnt opendoas $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package
     else
-      basestrap /mnt sudo $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package --needed
+      basestrap /mnt sudo $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package 
     fi
 }
 
@@ -1146,13 +1147,13 @@ EOF
 /dev/mapper/swap	none	swap	defaults	0	0
 
 # Temporary filesystem
-tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
+tmpfs	/tmp	tmpfs	rw,size=$RAM_size_G_half,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
 
 EOF
   else
       cat << EOF | tee -a /mnt/etc/fstab > /dev/null
 # Temporary filesystem
-tmpfs	/tmp	tmpfs	rw,size=$RAM_size,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
+tmpfs	/tmp	tmpfs	rw,size=$RAM_size_G_half,nr_inodes=5k,noexec,nodev,nosuid,mode=1700	0	0  
 
 EOF
   fi
