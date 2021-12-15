@@ -955,10 +955,8 @@ EOM
     fi
     if [[ "$BOOTLOADER_choice_grub" == "true" ]]; then
       export BOOTLOADER_choice="grub"
-      export BOOTLOADER_packages="grub grub-btrfs"
     elif [[ "$BOOTLOADER_choice_refind" == "true" ]]; then
       export BOOTLOADER_choice="refind"
-      export BOOTLOADER_packages="refind"
     fi
 }
 
@@ -1088,47 +1086,25 @@ EOM
 }
  
   SCRIPT_09_BASESTRAP_PACKAGES() {
-    packages=(
-      "$INIT_choice" 
-      "fcron-$INIT_choice"
-      "dhcpcd-$INIT_choice"
-      "chrony-$INIT_choice" 
-      "networkmanager-$INIT_choice"
-      "seatd-$INIT_choice"
-      "cryptsetup-$INIT_choice"
-      "pam_rundir"
-      "lolcat"
-      "figlet"
-      "bat"
-      "cryptsetup"
-      "libressl"
-      "vim"
-      "neovim"
-      "nano"
-      "realtime-privileges"
-      "base"
-      "base-devel"
-      "linux-zen"
-      "linux-zen-headers"
-      "os-prober"
-      "efibootmgr"
-      "btrfs-progs"
-      "mkinitcpio"
-      "zstd"
-      "lz4"
-      "bc"
-      "git"
-    )
-    printf -v PACKAGES_separated '%s ' "${packages[@]}"
+    basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
+                   networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
+		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
+                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs efibootmgr os-prober \
+                   base base-devel linux-zen linux-zen-headers
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-      export MICROCODE_package="intel-ucode"
+      basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
-      export MICROCODE_package="amd-ucode"
+      basestrap /mnt amd-ucode
     fi
     if [[ "$SUPERUSER_replace" == "true" ]]; then
-      basestrap /mnt opendoas $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package
+      basestrap /mnt opendoas
     else
-      basestrap /mnt sudo $PACKAGES_separated $BOOTLOADER_packages $MICROCODE_package 
+      basestrap /mnt sudo
+    fi
+    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+      basestrap /mnt grub grub-btrfs
+    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+      basestrap /mnt refind
     fi
 }
 
