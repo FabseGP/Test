@@ -878,12 +878,16 @@ EOM
             case ${user_choices[$val]} in
               1)           
                 read -rp "BOOTLOADER-ID (leave empty for default): " BOOTLOADER_label_export 
-                export BOOTLOADER_label=$BOOTLOADER_label_export
+                if ! [[ "$BOOTLOADER_label_export" == "" ]]; then
+                  export BOOTLOADER_label=$BOOTLOADER_label_export
+                fi
                 echo
                 ;;
               2)
-                read -rp "Time (hour of day) for daily snapshots (leave empty for default): " SNAPSHOT_cronjob_time_export 
-                export SNAPSHOT_cronjob_time=$SNAPSHOT_cronjob_time_export
+                read -rp "Time (hour of day) for daily snapshots (leave empty for default): " SNAPSHOT_cronjob_time_export
+                if ! [[ "$SNAPSHOT_cronjob_time_export" == "" ]]; then
+                  export SNAPSHOT_cronjob_time=$SNAPSHOT_cronjob_time_export
+                fi 
                 echo
                 ;;
               3)
@@ -1287,7 +1291,7 @@ EOF
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
       grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
       touch grub-pre.cfg
-      cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
+      cat << EOF | tee -a grub-pre.cfg > /dev/null
 
 insmod all_video
 set gfxmode=auto
@@ -1304,11 +1308,10 @@ normal
 
 EOF
       grub-mkimage -p '/efi/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 fat gfxterm gfxmenu btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha256 gcry_sha512
-      cp /tmp/image /efi/EFI/grub/grubx64.efi
+      cp /tmp/image /efi/EFI/"$BOOTLOADER_label"/grubx64.efi
       grub-mkconfig -o /efi/grub/grub.cfg
       rm -rf {/tmp/image,grub-pre.cfg}
-    fi
-    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
       grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
