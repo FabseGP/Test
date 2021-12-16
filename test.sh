@@ -1313,14 +1313,14 @@ normal
 
 EOF
       grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
-      cp /tmp/image /boot/EFI/"$BOOTLOADER_label"/grubx64.efi
-      grub-mkconfig -o /boot/grub/grub.cfg
+      cp /tmp/image /boot/efi/EFI/"$BOOTLOADER_label"/grubx64.efi
+      grub-mkconfig -o /boot/efi/EFI/"$BOOTLOADER_label"/grub.cfg
       rm -rf {/tmp/image,grub-pre.cfg}
     elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
       grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
-      grub-mkconfig -o /boot/grub/grub.cfg
+      grub-mkconfig -o /boot/efi/EFI/"$BOOTLOADER_label"/grub.cfg
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install
     fi
