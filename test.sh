@@ -14,7 +14,6 @@
   FILESYSTEM_primary="" # Future support for bcachefs once mainlined
   ENCRYPTION_partitions=""
   SWAP_partition=""
-  FSTAB_check=""
   INIT_choice=""
   AUR_helper=""
   SUPERUSER_replace=""
@@ -52,7 +51,8 @@
   export BOOTLOADER_label="ARTIX_BOOT"
   export SNAPSHOT_cronjob_time="13:00:00" # Default is 13:00:00 local time
   export PACKAGES_additional="empty"
-  export REPO="empty"
+  export REPO="not chosen"
+  export SCRIPT="not chosen"
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -130,7 +130,7 @@
     OUTPUT="$*"
     echo
     printf '%0.s-' $(seq 1 "$COLUMNS")
-    printf "%*s\n" $(((${#OUTPUT}+$COLUMNS)/2)) "$OUTPUT" | lolcat
+    printf "%*s\n" $((("${#OUTPUT}"+"$COLUMNS")/2)) "$OUTPUT" | lolcat
     printf '%0.s-' $(seq 1 "$COLUMNS")
     echo
 }
@@ -158,7 +158,6 @@
     "FILESYSTEM_primary_bcachefs:$BCACHEFS_notice"
     "ENCRYPTION_partitions:Encryption" 
     "SWAP_partition:Swap-partition" 
-    "FSTAB_check:FSTAB-check before system-install" 
     "INIT_choice_runit:runit as init" 
     "INIT_choice_openrc:openrc as init" 
     "INIT_choice_dinit:dinit as init" 
@@ -174,7 +173,7 @@
   PARTITIONS_without_swap="VALUE,BOOT-PARTITION (1),PRIMARY-PARTITION (2)"
   LOCALS="VALUE,TIMEZONE (1),LANGUAGES (2),KEYMAP (3),HOSTNAME (4)"
   USERS="VALUE,root (1),personal (2)"
-  MISCELLANEOUS=",BOOTLOADER-ID (1),SNAPSHOTS-TIME (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT REPO (4)"
+  MISCELLANEOUS=",BOOTLOADER-ID (1),SNAPSHOTS-TIME (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -214,7 +213,8 @@ EOM
 
     read -r -d '' OUTPUT_miscellaneous << EOM
 $MISCELLANEOUS
-VALUE:,$BOOTLOADER_label,$SNAPSHOT_cronjob_time,$PACKAGES_additional,$REPO
+VALUE:,$BOOTLOADER_label,$SNAPSHOT_cronjob_time,$PACKAGES_additional,Link: $REPO 
+,,,,Executable: $SCRIPT	
 EOM
 }
 
@@ -235,17 +235,18 @@ EOM
     "TIME TO LOCALIZE YOUR SYSTEM!" # While configuring locals
     "WE CAN ALL BENEFIT FROM MORE USERS!" # While configuring the users
     "TIME TO PACK UP!" # When configuring miscellaneous options
+    "AND VOILA - YOU NOW HAVE A FULLY FUNCTIONAL ARTIX INSTALL!" # When configuring miscellaneous options
 )
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
 # Insure that the script is run as root-user
 
-  if [ -z "$1" ] && ! [ "$USER" = 'root' ]; then
+  if [[ -z "$1" ]] && ! [[ "$USER" == 'root' ]]; then
     echo
     WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
     PRINT_LINES
-    printf "%*s\n" $(((${#WARNING}+$COLUMNS)/2)) "$WARNING"
+    printf "%*s\n" $((("${#WARNING}"+"$COLUMNS")/2)) "$WARNING"
     PRINT_LINES
     exit 1
   fi
@@ -257,12 +258,12 @@ EOM
   PRINT_TABLE() {
     local -r delimiter="${1}"
     local -r data="$(REMOVE_EMPTY_LINES "${2}")"
-    if [[ "${delimiter}" != "" ]] && [[ "$(EMPTY_STRING "${data}")" = "false" ]]; then
+    if ! [[ "${delimiter}" == "" ]] && [[ "$(EMPTY_STRING "${data}")" = "false" ]]; then
       local -r numberOfLines="$(wc -l <<< "${data}")"
       if [[ "${numberOfLines}" -gt "0" ]]; then
         local table=""
         local i=1
-        for ((i = 1; i <= "${numberOfLines}"; i = i + 1)); do
+        for ((i=1; i<="${numberOfLines}"; i++)); do
           local line=""
           line="$(sed "${i}q;d" <<< "${data}")"
           local numberOfColumns="0"
@@ -272,7 +273,7 @@ EOM
           fi
           table="${table}\n"
           local j=1
-          for ((j = 1; j <= "${numberOfColumns}"; j = j + 1)); do
+          for ((j=1; j<="${numberOfColumns}"; j++)); do
             table="${table}$(printf '#| %s' "$(cut -d "${delimiter}" -f "${j}" <<< "${line}")")"
           done
           table="${table}#|\n"
@@ -295,7 +296,7 @@ EOM
   REPEAT_STRING() {
     local -r string="${1}"
     local -r numberToRepeat="${2}"
-    if [[ "${string}" != "" && "${numberToRepeat}" =~ ^[1-9][0-9]*$ ]]; then
+    if ! [[ "${string}" == "" ]] && [[ "${numberToRepeat}" =~ ^[1-9][0-9]*$ ]]; then
       local -r result="$(printf "%${numberToRepeat}s")"
       echo -e "${result// /${string}}"
     fi
@@ -384,9 +385,9 @@ EOM
       toggle_option() {
         local option=$1
         if [[ "${selected[option]}" == "true" ]]; then
-          selected[option]=false
+          selected[option]="false"
         else
-          selected[option]=true
+          selected[option]="true"
         fi
       }
       print_options() {
@@ -412,21 +413,19 @@ EOM
         case $(key_input) in
           space)  
             if [[ "${options[0]}" == "INTRO" ]]; then
-              COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
+              COUNT_init=$(grep -o true <<< "${selected[@]:4:3}" | wc -l)
               COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
-              COUNT_bootloader=$(grep -o true <<< "${selected[@]:8:2}" | wc -l)
-              if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(5|6|7) ]]; then
-                eval selected[{5..7}]=false
+              COUNT_bootloader=$(grep -o true <<< "${selected[@]:7:2}" | wc -l)
+              if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(4|5|6) ]]; then
+                eval selected[{4..6}]=false
                 toggle_option $active
-              elif [[ "$COUNT_bootloader" -eq 1 ]] && [[ "$active" == @(8|9) ]]; then
-                eval selected[{8..9}]=false
+              elif [[ "$COUNT_bootloader" -eq 1 ]] && [[ "$active" == @(7|8) ]]; then
+                eval selected[{7..8}]=false
                 toggle_option $active
               elif [[ "$BCACHEFS_implemented" == "true" ]] && [[ "$COUNT_filesystem" -eq 1 ]] && [[ "$active" == @(0|1) ]]; then
                 eval selected[{0..1}]=false
                 toggle_option $active
-              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "1" ]]; then
-                :
-              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "0" ]]; then
+              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "1" || "$active" == "0" ]]; then
                 :
               else
                 toggle_option $active
@@ -438,9 +437,9 @@ EOM
           enter)  
             print_options -1 
             if [[ "${options[0]}" == "INTRO" ]]; then
-              COUNT_init=$(grep -o true <<< "${selected[@]:5:3}" | wc -l)
+              COUNT_init=$(grep -o true <<< "${selected[@]:4:3}" | wc -l)
               COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
-              COUNT_bootloader=$(grep -o true <<< "${selected[@]:8:2}" | wc -l)
+              COUNT_bootloader=$(grep -o true <<< "${selected[@]:7:2}" | wc -l)
               COUNT_intro="${#selected[@]}"
               if [[ "$COUNT_init" == "0" ]] && [[ "$COUNT_filesystem" == "0" ]] && [[ "$COUNT_bootloader" == "0" ]]; then
                 WRONG="true"
@@ -459,7 +458,7 @@ EOM
                 echo
                 PRINT_MESSAGE "${messages[7]}"
               else
-                for ((i=0, j=1; i < ${#selected[@]}; i++, j++)); do
+                for ((i=0, j=1; i<${#selected[@]}; i++, j++)); do
                   VALUE=${selected[$i]}
                   export "CHOICE_$j"="$VALUE"
                 done
@@ -602,7 +601,9 @@ EOM
   KEYMAP_check() {
     if ! [[ $(loadkeys "$KEYMAP_system_export") ]] && ! [[ "$KEYMAP_system_export" == "" ]]; then
       PRINT_MESSAGE "Illegal keymap!" 
-    elif [[ "$KEYMAP_system_export" == "" ]] || [[ $(loadkeys "$KEYMAP_system_export") ]]; then 
+    elif [[ "$KEYMAP_system_export" == "" ]]; then
+      PROCEED="true"
+    else
       export KEYMAP_system=$KEYMAP_system_export 
       PROCEED="true"
     fi
@@ -631,7 +632,7 @@ EOM
     unavailable_packages="0"
     IFS=','
     read -ra packages_to_install <<< "$PACKAGES_additional_export"
-    for ((val=0; val < "${#packages_to_install[@]}"; val++)); do 
+    for ((val=0; val<"${#packages_to_install[@]}"; val++)); do 
       if ! [[ $(pacman -Si "${packages_to_install[$val]}") ]] ; then
         echo "${packages_to_install[$val]} is not found in repos!"
         unavailable_packages+=1
@@ -652,6 +653,20 @@ EOM
     if echo "$VALID_url" | grep -q 404; then
       PRINT_MESSAGE "Illegal repo!"
     else
+      REPO_folder=$(basename "$REPO_export")
+      git clone --quiet "$REPO_export"
+      cd "$REPO_folder" || exit
+      contents=( * )
+      echo
+      echo "Which file is to be executed?"
+      echo 
+      select opt in "${contents[@]}"; do 
+        export SCRIPT="$opt"
+        chmod u+x "$opt"
+        cd "$BEGINNER_DIR" || exit
+        rm -rf "$REPO_folder"      
+        break 
+      done
       export REPO=$REPO_export
       PROCEED="true"
     fi
@@ -662,7 +677,7 @@ EOM
 # Functions for customizing install
 
   CUSTOMIZING_INSTALL() {
-    while [[ "$CONFIRM_proceed" != "true" ]]; do
+    while ! [[ "$CONFIRM_proceed" == "true" ]]; do
       PROCEED="false"
       echo
       IFS=
@@ -904,7 +919,7 @@ EOM
           else
             PRINT_TABLE ',' "$OUTPUT_partitions_without_swap"
           fi
-        elif [[ "$1" == "USERS" ]] && [[ "$ROOT_passwd_export" == "" || "$USERNAME_export" == "" || "$USER_passwd_export" == "" ]]; then
+        elif [[ "$1" == "USERS" ]] && [[ "$ROOT_passwd_export" == "" || "$USERNAME_export" == "" ]]; then
           PRINT_MESSAGE "YOU HAVEN'T CONFIGURED YOUR USERS!"
           PRINT_TABLE ',' "$OUTPUT_users"
         elif [[ "$1" == "MISCELLANEOUS" ]] && [[ "$ADDITIONAL_packages" == "true" || "$CUSTOM_script" == "true" ]] && [[ "$PACKAGES_additional_export" == "" || "$REPO_export" == "" ]]; then
@@ -913,7 +928,7 @@ EOM
         else
           CONFIRM_proceed="true"
         fi
-      elif [[ "$CONFIRM" != "n" ]]; then
+      elif ! [[ "$CONFIRM" == "n" ]]; then
         echo "WRONG CHOICE!"
       fi
     done
@@ -929,7 +944,7 @@ EOM
       printf "%s" "Installing dependencies "
       local command="pacman -S --noconfirm --needed lolcat figlet parted"
       $command > /dev/null 2>&1 &
-      while [[ ! $(pacman -Qs lolcat) ]]; do
+      while ! [[ $(pacman -Qs lolcat) ]]; do
         PRINT_PROGRESS_BAR 
         sleep 1
       done
@@ -940,7 +955,7 @@ EOM
   SCRIPT_02_CHOICES() {
     eval "${messages[0]}"
     MULTISELECT_MENU "${intro[@]}"
-    for ((i=1, j=1, option=1; i < "$COUNT_intro"; i++, j++, option++)); do 
+    for ((i=1, j=1, option=1; i<"$COUNT_intro"; i++, j++, option++)); do 
       VALUE=$(eval echo \$CHOICE_$j)
       CHOICE=${options[i]}
       SORTED=${CHOICE%%:*}
@@ -972,6 +987,7 @@ EOM
     fi
     if [[ "$CUSTOM_script" == "false" ]]; then
       export REPO="IGNORED"
+      export SCRIPT="IGNORED"
     fi
     UPDATE_CHOICES
     PRINT_MESSAGE "${messages[8]}" 
@@ -1076,7 +1092,7 @@ EOM
     mkdir -p /mnt/{boot,efi,home,srv,var,opt,tmp,.snapshots,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if [[ "${subvolumes[subvolume]}" != "@" ]]; then
+      if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
         mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
       fi
     done
@@ -1130,12 +1146,6 @@ tmpfs	/tmp	tmpfs	rw,size=$RAM_size_G_half,nr_inodes=5k,noexec,nodev,nosuid,mode=
 
 EOF
   fi
-}
-
-  SCRIPT_11_FSTAB_CHECK() {
-    if [[ "$FSTAB_check" == "true" ]]; then
-      cat /mnt/etc/fstab
-    fi
 }
 
   SCRIPT_12_CHROOT() {
@@ -1233,10 +1243,10 @@ EOF
 
   SYSTEM_06_SERVICES() {
     if [[ "$INIT_choice" == "dinit" ]]; then
-      ln -s ../NetworkManager /etc/dinit.d/boot.d/
-      ln -s ../fcron /etc/dinit.d/boot.d/
-      ln -s ../chrony /etc/dinit.d/boot.d/
-      ln -s ../dhcpcd /etc/dinit.d/boot.d/
+      dinitctl enable NetworkManager
+      dinitctl enable fcron
+      dinitctl enable chrony
+      dinitctl enable dhcpcd
     elif [[ "$INIT_choice" == "runit" ]]; then
       ln -s /etc/runit/sv/NetworkManager /etc/runit/runsvdir/default
       ln -s /etc/runit/sv/fcron /etc/runit/runsvdir/default
@@ -1270,27 +1280,42 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
-#root=\/dev\/mapper\/cryptroot\ 
-      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
+      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-      touch /etc/grub.d/01_header
+      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+      sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
+      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
+      touch grub-pre.cfg
       cat << EOF | tee -a /etc/grub.d/01_header > /dev/null
-#! /bin/sh
 
-crypto_uuid=$UUID_2
-echo "cryptomount -u $UUID_2"
+insmod all_video
+set gfxmode=auto
+terminal_input console
+terminal_output gfxterm
+
+cryptomount -u $UUID_2 
+
+set root=crypto0
+set prefix=(crypto0)/@/efi/grub
+
+insmod normal
+normal
 
 EOF
-   fi
-   if [[ "$BOOTLOADER_choice" == "grub" ]]; then
-     sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
-     sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-     grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
-     grub-mkconfig -o /efi/grub/grub.cfg
-   elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-     refind-install
-   fi
+      grub-mkimage -p '/efi/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 fat gfxterm gfxmenu btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha256 gcry_sha512
+      cp /tmp/image /efi/EFI/grub/grubx64.efi
+      grub-mkconfig -o /efi/grub/grub.cfg
+      rm -rf {/tmp/image,grub-pre.cfg}
+    fi
+    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+      sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
+      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
+      grub-mkconfig -o /efi/grub/grub.cfg
+    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+      refind-install
+    fi
 }
 
   SYSTEM_09_MISCELLANEOUS() {
@@ -1318,15 +1343,16 @@ EOF
     if [[ "$CUSTOM_script" == "true" ]]; then
       cd /install_script || exit
       REPO_folder=$(basename "$REPO")
-      git clone "$REPO"
+      git clone --quiet "$REPO"
       cd "$REPO_folder" || exit
-      chmod u+x -- *.sh
-      ./.sh
+      chmod u+x -- "$SCRIPT"
+      ./"$SCRIPT"
     fi
 }
 
   SYSTEM_11_CLEANUP() {
     rm -rf /install_script
+    pacman -Rns --noconfirm lolcat figlet
 }
 
   SCRIPT_13_FAREWELL() {
@@ -1338,6 +1364,8 @@ EOF
       PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
       echo
     fi
+    echo
+    PRINT_MESSAGE "${messages[12]}" 
     exit
 }
 
