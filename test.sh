@@ -1293,11 +1293,6 @@ EOF
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
 
-insmod all_video
-set gfxmode=auto
-terminal_input console
-terminal_output gfxterm
-
 cryptomount -u $UUID_2 
 
 set root=crypto0
