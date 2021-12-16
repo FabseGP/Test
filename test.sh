@@ -1104,7 +1104,7 @@ EOM
     cd / || exit
     umount /mnt
     mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-    mkdir -p /mnt/{boot/efi,efi,home,srv,var,opt,tmp,.snapshots,.secret}
+    mkdir -p /mnt/{boot,efi,home,srv,var,opt,tmp,.snapshots,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
       if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
@@ -1113,16 +1113,15 @@ EOM
     done
     sync
     cd "$BEGINNER_DIR" || exit
-    #mount "$DRIVE_path_boot" /mnt/efi
-    mount "$DRIVE_path_boot" /mnt/boot/efi
+    mount "$DRIVE_path_boot" /mnt/efi
 }
  
   SCRIPT_09_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
-		   apparmor-$INIT_choice pam_rundir lolcat figlet bat cryptsetup libressl  \
-                   vim neovim nano git realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs \
-                   efibootmgr os-prober base base-devel linux-zen linux-zen-headers
+		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
+                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs efibootmgr \
+                   os-prober base base-devel linux-zen linux-zen-headers
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1296,12 +1295,12 @@ EOF
 
   SYSTEM_08_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
-      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="lsm=landlock,lockdown,apparmor,yama,bpf\ loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
+      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-      #sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
+      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
+      grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id="$BOOTLOADER_label"
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
 
@@ -1315,13 +1314,13 @@ normal
 
 EOF
       grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 fat gfxterm gfxmenu btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha256 gcry_sha512
-      cp /tmp/image /boot/efi/EFI/"$BOOTLOADER_label"/grubx64.efi
+      cp /tmp/image /efi/EFI/"$BOOTLOADER_label"/grubx64.efi
       grub-mkconfig -o /boot/grub/grub.cfg
       rm -rf {/tmp/image,grub-pre.cfg}
     elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label"
+      grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id="$BOOTLOADER_label"
       grub-mkconfig -o /efi/grub/grub.cfg
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install
