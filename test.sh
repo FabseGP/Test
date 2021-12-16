@@ -173,7 +173,7 @@
   PARTITIONS_without_swap="VALUE,BOOT-PARTITION (1),PRIMARY-PARTITION (2)"
   LOCALS="VALUE,TIMEZONE (1),LANGUAGES (2),KEYMAP (3),HOSTNAME (4)"
   USERS="VALUE,root (1),personal (2)"
-  MISCELLANEOUS=",BOOTLOADER-ID (1),SNAPSHOTS-TIME IN HOURS (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
+  MISCELLANEOUS=",BOOTLOADER-ID (1),DAILY SNAPSHOTS-TIME IN HOURS (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -1300,22 +1300,22 @@ EOF
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id="$BOOTLOADER_label"
+      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label" --modules="luks2 part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512 btrfs"
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
 
 cryptomount -u $UUID_2 
 
 set root=crypto0
-set prefix=(crypto0)/@/boot/grub
+set prefix=(crypto0)/@/efi/grub
 
 insmod normal
 normal
 
 EOF
-      grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 fat gfxterm gfxmenu btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha256 gcry_sha512
+      grub-mkimage -p '/efi/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
       cp /tmp/image /efi/EFI/"$BOOTLOADER_label"/grubx64.efi
-      grub-mkconfig -o /boot/grub/grub.cfg
+      grub-mkconfig -o /efi/grub/grub.cfg
       rm -rf {/tmp/image,grub-pre.cfg}
     elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
