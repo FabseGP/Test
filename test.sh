@@ -502,7 +502,7 @@ EOM
         PRINT_MESSAGE "Only numbers please!"
         PROCEED="false"
       elif [[ "${user_choices[$val]}" == "1" ]]; then
-        if ! [[ "$DRIVE_size" -ge "300" ]]; then
+        if [[ "$DRIVE_size" -le "300" ]]; then
           echo
           PRINT_MESSAGE "Minimum 300 MB is required for the boot-partition!"
           echo
@@ -1104,7 +1104,7 @@ EOM
     cd / || exit
     umount /mnt
     mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-    mkdir -p /mnt/{boot,efi,home,srv,var,opt,tmp,.snapshots,.secret}
+    mkdir -p /mnt/{boot/efi,home,srv,var,opt,tmp,.snapshots,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
       if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
@@ -1113,14 +1113,14 @@ EOM
     done
     sync
     cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/efi
+    mount "$DRIVE_path_boot" /mnt/boot/efi
 }
  
   SCRIPT_09_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
-                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs efibootmgr \
+                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs rsync efibootmgr \
                    os-prober base base-devel linux-zen linux-zen-headers
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
@@ -1283,7 +1283,7 @@ EOF
       echo "$ENCRYPTION_passwd" | cryptsetup luksAddKey "$DRIVE_path_primary" /.secret/crypto_keyfile.bin
       sed -i 's/FILES=()/FILES=(\/.secret\/crypto_keyfile.bin)/' /etc/mkinitcpio.conf
     elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      sed -i 's/BINARIES=()/BINARIES=(\/usr\/bin\/btrfs)/' /etc/mkinitcpio.conf
+      sed -i 's/BINARIES=()/BINARIES=(btrfs)/' /etc/mkinitcpio.conf
     fi
     if [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS=(base\ udev\ keymap\ keyboard\ autodetect\ modconf\ block\ encrypt\ filesystems\ fsck\ grub-btrfs-overlayfs)/' /etc/mkinitcpio.conf
@@ -1298,30 +1298,29 @@ EOF
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
-      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      grub-install --target=x86_64-efi --efi-directory=/efi --boot-directory=/efi --bootloader-id="$BOOTLOADER_label" --modules="luks2 part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512 btrfs"
+      grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
 
 cryptomount -u $UUID_2 
 
 set root=crypto0
-set prefix=(crypto0)/@/efi/grub
+set prefix=(crypto0)/@/boot/grub
 
 insmod normal
 normal
 
 EOF
-      grub-mkimage -p '/efi/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
-      cp /tmp/image /efi/EFI/"$BOOTLOADER_label"/grubx64.efi
-      grub-mkconfig -o /efi/grub/grub.cfg
+      grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
+      cp /tmp/image /boot/EFI/"$BOOTLOADER_label"/grubx64.efi
+      grub-mkconfig -o /boot/grub/grub.cfg
       rm -rf {/tmp/image,grub-pre.cfg}
     elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
       grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
-      grub-mkconfig -o /efi/grub/grub.cfg
+      grub-mkconfig -o /boot/grub/grub.cfg
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install
     fi
@@ -1346,6 +1345,27 @@ EOF
       sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
       sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
     fi
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      mkdir /etc/pacman.d/hooks
+      touch /etc/pacman.d/hooks/50-bootbackup.hook
+      cat << EOF | tee -a /etc/pacman.d/hooks/50-bootbackup.hook > /dev/null
+
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Operation = Remove
+Type = Path
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Depends = rsync
+Description = Backing up /boot onto snapshot...
+When = PostTransaction
+Exec = /bin/sh -c 'rsync -a --delete /boot /.bootbackup && /.snapshots/btrfs_snapshot.sh boot'
+
+EOF
+  
+   fi   
 }
 
   SYSTEM_10_EXTERNAL_SCRIPT() {
