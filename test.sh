@@ -1153,6 +1153,8 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
           mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
         elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
           mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
+        elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
+          :
         else
           mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
         fi
