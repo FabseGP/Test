@@ -1098,7 +1098,7 @@ EOM
     fi
 }
 
-  SCRIPT_09_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
+  SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
@@ -1110,6 +1110,9 @@ EOM
           if [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
             btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
             chattr +C "${subvolumes[subvolume]}"
+          elif [[ "${subvolumes[subvolume]}" == ".snapshots" ]]; then
+            btrfs subvolume create "/mnt/@/.snapshots"
+            mkdir -p /mnt/@/.snapshots/1
           elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
             btrfs subvolume create "/mnt/@/.snapshots/1/${subvolumes[subvolume]}"
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
@@ -1119,7 +1122,7 @@ EOM
           fi
         else
           btrfs subvolume create "/mnt/${subvolumes[subvolume]}"
-          mkdir -p /mnt/@/{var,.snapshots/1,boot}
+          mkdir -p /mnt/@/{var,boot}
         fi
       elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         bcachefs subvolume create "${subvolumes[subvolume]}"
@@ -1162,7 +1165,7 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
     mount "$DRIVE_path_boot" /mnt/boot/efi
 }
  
-  SCRIPT_10_BASESTRAP_PACKAGES() {
+  SCRIPT_09_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
@@ -1187,7 +1190,7 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
     basestrap -U /mnt $SNAP-PAC
 }
 
-  SCRIPT_11_FSTAB_GENERATION() {
+  SCRIPT_10_FSTAB_GENERATION() {
     fstabgen -U /mnt >> /mnt/etc/fstab
     if [[ "$SWAP_partition" == "true" ]]; then
       UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
@@ -1211,7 +1214,7 @@ EOF
   fi
 }
 
-  SCRIPT_12_CHROOT() {
+  SCRIPT_11_CHROOT() {
     mkdir /mnt/install_script
     cp -- * /mnt/install_script
     for ((function=0; function < "${#functions[@]}"; function++)); do
@@ -1430,7 +1433,7 @@ EOF
    fi   
 }
 
-  SYSTEM_12_EXTERNAL_SCRIPT() {
+  SYSTEM_11_EXTERNAL_SCRIPT() {
     if [[ "$CUSTOM_script" == "true" ]]; then
       cd /install_script || exit
       REPO_folder=$(basename "$REPO")
@@ -1446,7 +1449,7 @@ EOF
     pacman -Rns --noconfirm lolcat figlet
 }
 
-  SCRIPT_13_FAREWELL() {
+  SCRIPT_12_FAREWELL() {
     if [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$FILESYSTEM_primary" == "btrfs" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
       PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
       PRINT_WITH_COLOR yellow "Though since a keyfile has been added to the partition, you only have to unlock the partition once with the following commands: "
