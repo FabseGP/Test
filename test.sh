@@ -581,14 +581,20 @@ EOM
       if ! [[ "$LANGUAGES_generate_export" == "" ]]; then
         for ((val=0; val < "${#languages[@]}"; val++)); do 
           if grep -Eq "#${languages[$val]} UTF-8" /etc/locale.gen; then
-            PROCEED="true"
+            correct="true"
           else
             PRINT_MESSAGE "Illegal language: \""${languages[$val]}\"""   
-            PROCEED="false"  
+            correct="false"  
           fi
         done
+        if [[ "$correct" == "true" ]]; then
+          export LANGUAGES_generate=$LANGUAGES_generate_export
+          PROCEED="true"
+        else 
+          PRINT_MESSAGE "Illegal language: \""${languages[$val]}\"""   
+          PROCEED="false"
+        fi
       else
-        export LANGUAGES_generate=$LANGUAGES_generate_export
         PROCEED="true"
       fi
     elif [[ "$1" == "system" ]]; then
