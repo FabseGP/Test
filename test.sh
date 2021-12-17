@@ -1156,11 +1156,6 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
     cd "$BEGINNER_DIR" || exit
     mount "$DRIVE_path_boot" /mnt/boot/efi
 }
-
-  SCRIPT_08_SNAPSHOTS() {
-
-
-}
  
   SCRIPT_10_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
