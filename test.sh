@@ -1148,7 +1148,7 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
     mkdir -p /mnt/{boot/{efi,grub},.snapshots,opt,root,srv,tmp,var/{cache,log,spool,tmp},home,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
+      if ! [[ "${subvolumes[subvolume]}" == "@" ]] || ! [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
         if [[ "${subvolumes[subvolume]}" == "grub" ]]; then
           mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
         elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
