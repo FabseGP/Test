@@ -67,10 +67,17 @@
     \@
     \@"home"
     \@"var"
+    \@"var/cache"
+    \@"var/log"
+    \@"var/spool"
+    \@"var/tmp"
     \@"opt"
     \@"tmp"
     \@"srv"
-    \@\."snapshots"
+    \@".snapshots"
+    \@"root"
+    \@"grub"
+    \@"snapshot"
   )
 
   # Size of tmpfs (/tmp) 
@@ -1097,31 +1104,56 @@ EOM
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         btrfs subvolume create "${subvolumes[subvolume]}"
+        if [[ "${subvolumes[subvolume]}" == "@var/*" ]]; then
+          chattr +C "${subvolumes[subvolume]}"
+        fi
       elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         bcachefs subvolume create "${subvolumes[subvolume]}"
       fi
     done
     cd / || exit
+    btrfs quota enable /mnt
     umount /mnt
     mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-    mkdir -p /mnt/{boot/efi,home,srv,var,opt,tmp,.snapshots,.secret}
+    mkdir -p /mnt/{boot/{efi,grub},home,srv,var/{cache,log,spool,tmp},opt,tmp,.snapshots/1,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
       if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
         mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+      elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
+        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
+      elif [[ "${subvolumes[subvolume]}" == "@snapshot" ]]; then
+        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
       fi
     done
     sync
     cd "$BEGINNER_DIR" || exit
     mount "$DRIVE_path_boot" /mnt/boot/efi
 }
+
+  SCRIPT_09_SNAPSHOTS() {
+    touch /mnt/.snapshots/1/info.xml
+    date=$(date +"%Y-%m-%d %H:%M:%S")
+    cat << EOF | tee -a /mnt/.snapshots/1/info.xml > /dev/null
+
+<?xml version="1.0"?>
+<snapshot>
+	<type>single</type>
+	<num>1</num>
+	<date>$date</date>
+	<description>First snapshot created at installation</description>
+</snapshot>
+
+EOF
+
+}
  
-  SCRIPT_09_BASESTRAP_PACKAGES() {
+  SCRIPT_10_BASESTRAP_PACKAGES() {
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
                    realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs rsync efibootmgr \
-                   os-prober base base-devel linux-zen linux-zen-headers
+                   os-prober base base-devel linux-zen linux-zen-headers snapper
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1139,7 +1171,7 @@ EOM
     fi
 }
 
-  SCRIPT_10_FSTAB_GENERATION() {
+  SCRIPT_11_FSTAB_GENERATION() {
     fstabgen -U /mnt >> /mnt/etc/fstab
     if [[ "$SWAP_partition" == "true" ]]; then
       UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
