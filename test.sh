@@ -1141,23 +1141,21 @@ EOM
 </snapshot>
 
 EOF
-btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/snapshot" | grep -oP '(?<=ID )[0-9]+') /mnt
+    btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/snapshot" | grep -oP '(?<=ID )[0-9]+') /mnt
     btrfs quota enable /mnt
     umount /mnt
     mount "$MOUNTPOINT" -o noatime,compress=zstd /mnt
     mkdir -p /mnt/{boot/{efi,grub},.snapshots,opt,root,srv,tmp,var/{cache,log,spool,tmp},home,.secret}
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if ! [[ "${subvolumes[subvolume]}" == "@" ]] || ! [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
-        if [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-          mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
-        elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
-        elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
-          :
-        else
-          mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
-        fi
+      if [[ "${subvolumes[subvolume]}" == "grub" ]]; then
+        mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
+      elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
+        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
+      elif [[ "${subvolumes[subvolume]}" == "snapshot" ]] || [[ "${subvolumes[subvolume]}" == "@" ]]; then
+        :
+      else
+        mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
       fi
     done
     sync
@@ -1192,6 +1190,7 @@ btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/s
 
   SCRIPT_10_FSTAB_GENERATION() {
     fstabgen -U /mnt >> /mnt/etc/fstab
+    sed -i 's/,subvolid=.*,subvol=\/@\/.snapshots\/1\/snapshot//' /mnt/etc/fstab
     if [[ "$SWAP_partition" == "true" ]]; then
       UUID_swap=$(lsblk -no TYPE,UUID "$DRIVE_path_swap" | awk '$1=="part"{print $2}')
       cat << EOF | tee -a /mnt/etc/crypttab > /dev/null
