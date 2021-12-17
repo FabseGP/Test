@@ -1093,52 +1093,36 @@ EOM
     fi
 }
 
-  SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
+  SCRIPT_09_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
       export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
     fi
     mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
-    cd /mnt || exit
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-        btrfs subvolume create "${subvolumes[subvolume]}"
-        if [[ "${subvolumes[subvolume]}" == "@var/*" ]]; then
-          chattr +C "${subvolumes[subvolume]}"
+        if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
+          if [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
+            mkdir /mnt/@/var
+            btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
+            chattr +C "${subvolumes[subvolume]}"
+          elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
+            mkdir /mnt/@/.snapshots/1
+            btrfs subvolume create "/mnt/@/.snapshots/1/${subvolumes[subvolume]}"
+          elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
+            mkdir /mnt/@/boot
+            btrfs subvolume create "/mnt/@/boot/${subvolumes[subvolume]}"
+          fi
+        else
+          btrfs subvolume create "/mnt/${subvolumes[subvolume]}"
         fi
       elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         bcachefs subvolume create "${subvolumes[subvolume]}"
       fi
     done
-    cd / || exit
-    btrfs quota enable /mnt
-    umount /mnt
-    mount -o noatime,compress=zstd,subvol=@ "$MOUNTPOINT" /mnt
-    mkdir -p /mnt/.secret
-    for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
-      subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
-        if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-          mkdir -p /mnt/boot/{efi,grub}
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
-        elif [[ "${subvolumes[subvolume]}" == "@snapshot" ]]; then
-          mkdir -p /mnt/.snapshots/1
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
-        else
-          mkdir -p /mnt/"$subvolume_path"
-          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
-        fi
-      fi
-    done
-    sync
-    cd "$BEGINNER_DIR" || exit
-    mount "$DRIVE_path_boot" /mnt/boot/efi
-}
-
-  SCRIPT_09_SNAPSHOTS() {
-    touch /mnt/.snapshots/1/info.xml
+    touch /mnt/@/.snapshots/1/info.xml
     date=$(date +"%Y-%m-%d %H:%M:%S")
-    cat << EOF | tee -a /mnt/.snapshots/1/info.xml > /dev/null
+    cat << EOF | tee -a /mnt/@/.snapshots/1/info.xml > /dev/null
 
 <?xml version="1.0"?>
 <snapshot>
@@ -1149,6 +1133,32 @@ EOM
 </snapshot>
 
 EOF
+btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/snapshot" | grep -oP '(?<=ID )[0-9]+') /mnt
+    btrfs quota enable /mnt
+    umount /mnt
+    mount "$MOUNTPOINT" -o noatime,compress=zstd /mnt
+    mkdir -p /mnt/{boot/{efi,grub},.snapshots,opt,root,srv,tmp,var/{cache,log,spool,tmp},home,.secret}
+    for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
+      subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
+      if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
+        if [[ "${subvolumes[subvolume]}" == "grub" ]]; then
+          mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
+        elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
+        elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
+        else
+          mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+        fi
+      fi
+    done
+    sync
+    cd "$BEGINNER_DIR" || exit
+    mount "$DRIVE_path_boot" /mnt/boot/efi
+}
+
+  SCRIPT_08_SNAPSHOTS() {
+
 
 }
  
@@ -1157,7 +1167,7 @@ EOF
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
                    realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs rsync efibootmgr \
-                   os-prober base base-devel linux-zen linux-zen-headers snapper
+                   os-prober base base-devel linux-zen linux-zen-headers snapper snap-pac
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1173,6 +1183,8 @@ EOF
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       basestrap /mnt refind
     fi
+    SNAP-PAC="$(ls -- *snap-pac*)"
+    basestrap -U /mnt $SNAP-PAC
 }
 
   SCRIPT_11_FSTAB_GENERATION() {
@@ -1329,12 +1341,24 @@ EOF
     mkinitcpio -P
 }
 
-  SYSTEM_08_BOOTLOADER() {
+  SYSTEM_08_SNAPPER() {
+    umount /.snapshots
+    rm -r /.snapshots
+    snapper --no-dbus -c root create-config /
+    btrfs subvolume delete /.snapshots
+    mkdir /.snapshots
+    mount -a
+    chmod 750 /.snapshots
+}
+
+  SYSTEM_09_BOOTLOADER() {
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
       sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
       sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
+      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/10_linux 
+      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/20_linux_xen           
       grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
       touch grub-pre.cfg
       cat << EOF | tee -a grub-pre.cfg > /dev/null
@@ -1355,6 +1379,8 @@ EOF
     elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
+      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/10_linux 
+      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/20_linux_xen           
       grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
       grub-mkconfig -o /boot/grub/grub.cfg
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
@@ -1362,7 +1388,7 @@ EOF
     fi
 }
 
-  SYSTEM_09_MISCELLANEOUS() {
+  SYSTEM_10_MISCELLANEOUS() {
     cd /install_script || exit
     cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
 auth optional pam_faildelay.so delay="$LOGIN_delay"
@@ -1404,7 +1430,7 @@ EOF
    fi   
 }
 
-  SYSTEM_10_EXTERNAL_SCRIPT() {
+  SYSTEM_12_EXTERNAL_SCRIPT() {
     if [[ "$CUSTOM_script" == "true" ]]; then
       cd /install_script || exit
       REPO_folder=$(basename "$REPO")
@@ -1415,7 +1441,7 @@ EOF
     fi
 }
 
-  SYSTEM_11_CLEANUP() {
+  SYSTEM_12_CLEANUP() {
     rm -rf /install_script
     pacman -Rns --noconfirm lolcat figlet
 }
