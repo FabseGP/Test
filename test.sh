@@ -1118,14 +1118,16 @@ EOM
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
       if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
-        mkdir -p /mnt/"$subvolume_path"
-        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
-      elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-        mkdir -p /mnt/boot/{efi,grub}
-        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
-      elif [[ "${subvolumes[subvolume]}" == "@snapshot" ]]; then
-        mkdir -p /mnt/.snapshots/1
-        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
+        if [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
+          mkdir -p /mnt/boot/{efi,grub}
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
+        elif [[ "${subvolumes[subvolume]}" == "@snapshot" ]]; then
+          mkdir -p /mnt/.snapshots/1
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
+        else
+          mkdir -p /mnt/"$subvolume_path"
+          mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+        fi
       fi
     done
     sync
