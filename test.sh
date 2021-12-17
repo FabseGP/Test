@@ -345,8 +345,7 @@ EOM
         printf "$2  $ESC[7m $1 $ESC[27m" 
       }
       get_cursor_row() { 
-        IFS=';' 
-        read -rsdR -p $'\E[6n' ROW COL
+        IFS=';' read -rsdR -p $'\E[6n' ROW COL 
         echo "${ROW#*[}"
       }
       return_value="result"
