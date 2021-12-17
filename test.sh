@@ -1121,10 +1121,10 @@ EOM
         mkdir -p /mnt/"$subvolume_path"
         mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
       elif [[ "${subvolumes[subvolume]}" == "@grub" ]]; then
-        mkdir -p /mnt/{boot/{efi,grub}}
+        mkdir -p /mnt/boot/{efi,grub}
         mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/boot/"$subvolume_path"
       elif [[ "${subvolumes[subvolume]}" == "@snapshot" ]]; then
-        mkdir -p /mnt/{.snapshots/1}
+        mkdir -p /mnt/.snapshots/1
         mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/.snapshots/1/"$subvolume_path"
       fi
     done
