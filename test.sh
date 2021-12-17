@@ -65,19 +65,18 @@
   # Subvolumes to be created 
   subvolumes=(
     \@
-    \@"home"
-    \@"var"
-    \@"var/cache"
-    \@"var/log"
-    \@"var/spool"
-    \@"var/tmp"
-    \@"opt"
-    \@"tmp"
-    \@"srv"
-    \@".snapshots"
-    \@"root"
-    \@"grub"
-    \@"snapshot"
+    "home"
+    "var/cache"
+    "var/log"
+    "var/spool"
+    "var/tmp"
+    "opt"
+    "tmp"
+    "srv"
+    ".snapshots"
+    "root"
+    "grub"
+    "snapshot"
   )
 
   # Size of tmpfs (/tmp) 
@@ -1112,6 +1111,8 @@ EOM
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
             mkdir /mnt/@/boot
             btrfs subvolume create "/mnt/@/boot/${subvolumes[subvolume]}"
+          else
+            btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
           fi
         else
           btrfs subvolume create "/mnt/${subvolumes[subvolume]}"
