@@ -1184,8 +1184,8 @@ EOF
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       basestrap /mnt refind
     fi
-    SNAP-PAC="$(ls -- *snap-pac*)"
-    basestrap -U /mnt $SNAP-PAC
+    SNAPPER_package="$(ls -- *snap-pac*)"
+    basestrap -U /mnt $SNAPPER_package
 }
 
   SCRIPT_10_FSTAB_GENERATION() {
@@ -1395,15 +1395,6 @@ EOF
     cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
 auth optional pam_faildelay.so delay="$LOGIN_delay"
 EOF
-    cp btrfs_snapshot.sh /.snapshots # Maximum 3 snapshots stored
-    chmod u+x /.snapshots/*
-    sed -i -e "/GRUB_BTRFS_OVERRIDE_BOOT_PARTITION_DETECTION/s/^#//" /etc/default/grub-btrfs/config
-    if [[ -z "$SNAPSHOT_cronjob_time" ]]; then
-      CRONJOB_snapshots="0 13 * * * /.snapshots/btrfs_snapshot.sh" # Each day at 13:00 local time
-    else
-      CRONJOB_snapshots="0 $SNAPSHOT_cronjob_time * * * /.snapshots/btrfs_snapshot.sh"
-    fi
-    (fcrontab -u root -l; echo "$CRONJOB_snapshots" ) | fcrontab -u root -
     if [[ "$INIT_choice" == "openrc" ]]; then
       sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
       sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
