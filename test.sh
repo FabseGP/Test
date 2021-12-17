@@ -1108,20 +1108,18 @@ EOM
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         if ! [[ "${subvolumes[subvolume]}" == "@" ]]; then
           if [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
-            mkdir -p /mnt/@/var
             btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
             chattr +C "${subvolumes[subvolume]}"
           elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
-            mkdir -p /mnt/@/.snapshots/1
             btrfs subvolume create "/mnt/@/.snapshots/1/${subvolumes[subvolume]}"
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-            mkdir -p /mnt/@/boot
             btrfs subvolume create "/mnt/@/boot/${subvolumes[subvolume]}"
           else
             btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
           fi
         else
           btrfs subvolume create "/mnt/${subvolumes[subvolume]}"
+          mkdir -p /mnt/@/{var,.snapshots/1,boot}
         fi
       elif [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         bcachefs subvolume create "${subvolumes[subvolume]}"
