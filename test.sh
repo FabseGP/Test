@@ -43,13 +43,12 @@
 
   # Users
   export ROOT_username="root"
-  export ROOT_passwd="root"
-  export USERNAME="artix"
-  export USER_passwd="insecure"
+  export ROOT_passwd="not chosen"
+  export USERNAME="not chosen"
+  export USER_passwd="not chosen"
 
   # Miscellaneous
   export BOOTLOADER_label="ARTIX_BOOT"
-  export SNAPSHOT_cronjob_time="13" # Default is 13:00:00 local time
   export PACKAGES_additional="empty"
   export REPO="not chosen"
   export SCRIPT="not chosen"
@@ -141,17 +140,9 @@
     echo
 }
 
-  ASCII_rainbow() {
-    figlet -c -t -k "$@" | lolcat && echo
-}
-
   PRINT_PROGRESS_BAR() {
     local progress_bar="."
     printf "%s" "${progress_bar}"
-}
-
-  PRINT_CHECKBOX() { 
-    [[ "$1" == "1" ]] || [[ "$1" == "true" ]] && echo -e "${BBlue}[${Reset}${Bold}X${BBlue}]${Reset}" || echo -e "${BBlue}[ ${BBlue}]${Reset}";
 }
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -179,7 +170,7 @@
   PARTITIONS_without_swap="VALUE,BOOT-PARTITION (1),PRIMARY-PARTITION (2)"
   LOCALS="VALUE,TIMEZONE (1),LANGUAGES (2),KEYMAP (3),HOSTNAME (4)"
   USERS="VALUE,root (1),personal (2)"
-  MISCELLANEOUS=",BOOTLOADER-ID (1),DAILY SNAPSHOTS-TIME IN HOURS (2),ADDITIONAL PACKAGES (3), EXTERNAL SCRIPT (4)"
+  MISCELLANEOUS=",BOOTLOADER-ID (1),ADDITIONAL PACKAGES (2),EXTERNAL SCRIPT (3)"
 
 #----------------------------------------------------------------------------------------------------------------------------------
 
@@ -219,8 +210,8 @@ EOM
 
     read -r -d '' OUTPUT_miscellaneous << EOM
 $MISCELLANEOUS
-VALUE:,$BOOTLOADER_label,$SNAPSHOT_cronjob_time,$PACKAGES_additional,Link: $REPO 
-,,,,Executable: $SCRIPT	
+VALUE:,$BOOTLOADER_label,$PACKAGES_additional,Link: $REPO 
+,,,Executable: $SCRIPT	
 EOM
 }
 
@@ -241,7 +232,8 @@ EOM
     "TIME TO LOCALIZE YOUR SYSTEM!" # While configuring locals
     "WE CAN ALL BENEFIT FROM MORE USERS!" # While configuring the users
     "TIME TO PACK UP!" # When configuring miscellaneous options
-    "AND VOILA - YOU NOW HAVE A FULLY FUNCTIONAL ARTIX INSTALL!" # When configuring miscellaneous options
+    "AND VOILA - YOU NOW HAVE A FULLY FUNCTIONAL ARTIX INSTALL!" # When... done
+    "THIS SCRIPT MUST BE RUN AS ROOT!" # When user is not root and an argument isn't passed
 )
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -250,9 +242,8 @@ EOM
 
   if [[ -z "$1" ]] && ! [[ "$USER" == 'root' ]]; then
     echo
-    WARNING="THIS SCRIPT MUST BE RUN AS ROOT!"
     PRINT_LINES
-    printf "%*s\n" $((("${#WARNING}"+"$COLUMNS")/2)) "$WARNING"
+    printf "%*s\n" $((("${#messages[13]}"+"$COLUMNS")/2)) "${messages[13]}"
     PRINT_LINES
     exit 1
   fi
@@ -351,7 +342,9 @@ EOM
       options=("$@")
       if ! [[ "$WRONG" == "true" ]]; then
         selected=()
-        PRINT_MESSAGE "${messages[2]}" 
+        if [[ "${options[0]}" == "INTRO" ]]; then
+          PRINT_MESSAGE "${messages[2]}" 
+        fi
         PRINT_MESSAGE "${messages[3]}"
         echo
         selected=("true")
@@ -372,7 +365,7 @@ EOM
       cursor_blink_off
       key_input() { 
         local key
-        IFS= 
+        IFS=""
         read -rsn1 key 2> /dev/null >&2
         if [[ "$key" = "" ]]; then 
           echo enter
@@ -421,16 +414,16 @@ EOM
               COUNT_init=$(grep -o true <<< "${selected[@]:4:3}" | wc -l)
               COUNT_filesystem=$(grep -o true <<< "${selected[@]:0:2}" | wc -l)
               COUNT_bootloader=$(grep -o true <<< "${selected[@]:7:2}" | wc -l)
-              if [[ "$COUNT_init" -eq 1 ]] && [[ "$active" == @(4|5|6) ]]; then
+              if [[ "$COUNT_init" -eq "1" ]] && [[ "$active" == @(4|5|6) ]]; then
                 eval selected[{4..6}]=false
                 toggle_option $active
-              elif [[ "$COUNT_bootloader" -eq 1 ]] && [[ "$active" == @(7|8) ]]; then
+              elif [[ "$COUNT_bootloader" -eq "1" ]] && [[ "$active" == @(7|8) ]]; then
                 eval selected[{7..8}]=false
                 toggle_option $active
               elif [[ "$BCACHEFS_implemented" == "true" ]] && [[ "$COUNT_filesystem" -eq 1 ]] && [[ "$active" == @(0|1) ]]; then
                 eval selected[{0..1}]=false
                 toggle_option $active
-              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == "1" || "$active" == "0" ]]; then
+              elif [[ "$BCACHEFS_implemented" == "false" ]] && [[ "$active" == @(0|1)	 ]]; then
                 :
               else
                 toggle_option $active
@@ -477,12 +470,12 @@ EOM
           up)     
             ((active--)); 
             if [[ "$active" -lt "0" ]]; then 
-              active=$((${#options[@]} - 1)) 
+              active=$((${#options[@]}-1)) 
             fi
             ;;
           down)   
             ((active++)); 
-            if [[ "$active" -ge "${#options[@]}" ]]; then 
+            if [[ "$active" -ge "$((${#options[@]}-1))" ]]; then 
               active=0
             fi
             ;;
@@ -639,17 +632,6 @@ EOM
     fi   
 }
 
-  SNAPSHOT_time_check() {
-    if ! [[ "$SNAPSHOT_cronjob_time_export" =~ ^[0-9]+$ || "${#SNAPSHOT_cronjob_time_export}" -gt 2 ]] && ! [[ "$SNAPSHOT_cronjob_time_export" == "" ]]; then
-      PRINT_MESSAGE "Only two numbers please!"
-    elif [[ "$SNAPSHOT_cronjob_time_export" == "" ]]; then
-      PROCEED="true"
-    else
-      export SNAPSHOT_cronjob_time=$SNAPSHOT_cronjob_time_export
-      PROCEED="true"
-    fi 
-}
-
   PACKAGES_check() {
     unavailable_packages="0"
     IFS=','
@@ -745,7 +727,7 @@ EOM
           echo
           IFS=','
           read -ra user_choices <<< "$partition"
-          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+          for ((val=0; val<"${#user_choices[@]}"; val++)); do 
             case ${user_choices[$val]} in
               1)           
                 until [[ "$PROCEED" == "true" ]]; do
@@ -812,11 +794,11 @@ EOM
             PRINT_TABLE ',' "$OUTPUT_partitions_without_swap"
           fi
         elif [[ "$1" == "LOCALS" ]]; then
-          read -rp "Option to modify (e.g. \"1,2\"): " local
+          read -rp "Locals to modify (e.g. \"1,2\"): " local
           echo
           IFS=','
           read -ra user_choices <<< "$local"
-          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+          for ((val=0; val<"${#user_choices[@]}"; val++)); do 
             case ${user_choices[$val]} in
               1)
                 until [[ "$PROCEED" == "true" ]]; do
@@ -862,7 +844,7 @@ EOM
           echo
           IFS=','
           read -ra user_choices <<< "$user"
-          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+          for ((val=0; val<"${#user_choices[@]}"; val++)); do 
             case ${user_choices[$val]} in
               1)       
                 until [[ "$PROCEED" == "true" ]]; do
@@ -894,9 +876,9 @@ EOM
         elif [[ "$1" == "MISCELLANEOUS" ]]; then
           read -rp "Option to modify (e.g. \"1,2\"): " option
           echo
-          IFS=','
+          IFS=','	
           read -ra user_choices <<< "$option"
-          for ((val=0; val < "${#user_choices[@]}"; val++)); do 
+          for ((val=0; val<"${#user_choices[@]}"; val++)); do 
             case ${user_choices[$val]} in
               1)           
                 read -rp "BOOTLOADER-ID (leave empty for default): " BOOTLOADER_label_export 
@@ -906,13 +888,6 @@ EOM
                 echo
                 ;;
               2)
-                until [[ "$PROCEED" == "true" ]]; do
-                  read -rp "Time (hour of day) for daily snapshots (leave empty for default): " SNAPSHOT_cronjob_time_export
-                  SNAPSHOT_time_check
-                done
-                echo
-                ;;
-              3)
                 if [[ "$ADDITIONAL_packages" == "true" ]]; then
                   until [[ "$PROCEED" == "true" ]]; do
                     read -rp "Additional packages to install (separated by comma): " PACKAGES_additional_export 
@@ -922,7 +897,7 @@ EOM
                   echo
                 fi
                 ;;
-              4)
+              3)
                 if [[ "$CUSTOM_script" == "true" ]]; then
                   until [[ "$PROCEED" == "true" ]]; do
                     read -rp "Link to external repo: " REPO_export 
@@ -1114,9 +1089,9 @@ EOM
             btrfs subvolume create "/mnt/@/.snapshots"
             mkdir -p /mnt/@/.snapshots/1
           elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
-            btrfs subvolume create "/mnt/@/.snapshots/1/${subvolumes[subvolume]}"
+            btrfs subvolume create "/mnt/@/.snapshots/1/snsapshot"
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-            btrfs subvolume create "/mnt/@/boot/${subvolumes[subvolume]}"
+            btrfs subvolume create "/mnt/@/boot/grub"
           else
             btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
           fi
@@ -1134,7 +1109,7 @@ EOM
 
 <?xml version="1.0"?>
 <snapshot>
-	<type>single</type>
+<type>single</type>
 	<num>1</num>
 	<date>$date</date>
 	<description>First snapshot created at installation</description>
@@ -1145,17 +1120,23 @@ EOF
     btrfs quota enable /mnt
     umount /mnt
     mount "$MOUNTPOINT" -o noatime,compress=zstd /mnt
-    mkdir -p /mnt/{boot/{efi,grub},.snapshots,opt,root,srv,tmp,var/{cache,log,spool,tmp},home,.secret}
+    if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+      mkdir -p /mnt/.secret 
+    fi
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-        mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
-      elif [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
-        mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
-      elif [[ "${subvolumes[subvolume]}" == "snapshot" ]] || [[ "${subvolumes[subvolume]}" == "@" ]]; then
-        :
-      else
-        mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+      if ! [[ "${subvolumes[subvolume]}" == "@" ]] || [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
+        if ! [[ "${subvolumes[subvolume]}" == "grub" ]]; then
+          mkdir -p /mnt/"${subvolumes[subvolume]}"
+          if [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
+            mount -o noatime,compress=zstd,subvol="${subvolumes[subvolume]}",nodatacow "$MOUNTPOINT" /mnt/"$subvolume_path"
+          else
+            mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
+          fi  
+        elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
+          mkdir -p /mnt/{boot/{efi,grub}}
+          mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
+        fi
       fi
     done
     sync
@@ -1167,8 +1148,8 @@ EOF
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
-                   realtime-privileges bc lz4 zstd mkinitcpio btrfs-progs rsync efibootmgr \
-                   os-prober base base-devel linux-zen linux-zen-headers snapper snap-pac
+                   realtime-privileges bc lz4 zstd mkinitcpio rsync efibootmgr os-prober \
+                   base base-devel linux-zen linux-zen-headers snapper snap-pac
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1179,13 +1160,23 @@ EOF
     else
       basestrap /mnt sudo
     fi
-    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
-      basestrap /mnt grub grub-btrfs
-    elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-      basestrap /mnt refind
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+        basestrap /mnt grub grub-btrfs btrfs-progs
+      elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+        basestrap /mnt refind btrfs-progs
+        REFIND_btrfs="$(ls -- *refind-btrfs*)"
+        basestrap -U /mnt $REFIND_btrfs
+      fi
+      SNAPPER_package="$(ls -- *snap-pac*)"
+      basestrap -U /mnt $SNAPPER_package
+    elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
+      if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+        basestrap /mnt grub bcachefs-tools
+      elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
+        basestrap /mnt refind btrfs-progs bcachefs-tools
+      fi
     fi
-    SNAPPER_package="$(ls -- *snap-pac*)"
-    basestrap -U /mnt $SNAPPER_package
 }
 
   SCRIPT_10_FSTAB_GENERATION() {
@@ -1344,55 +1335,79 @@ EOF
 }
 
   SYSTEM_08_SNAPPER() {
-    umount /.snapshots
-    rm -r /.snapshots
-    snapper --no-dbus -c root create-config /
-    btrfs subvolume delete /.snapshots
-    mkdir /.snapshots
-    mount -a
-    chmod 750 /.snapshots
+    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+      cd /install_script || exit
+      umount /.snapshots
+      rm -r /.snapshots
+      snapper --no-dbus -c root create-config /
+      mv snapper_root /etc/snapper/configs/root
+      btrfs subvolume delete /.snapshots
+      mkdir /.snapshots
+      mount -a
+      chmod 750 /.snapshots
+    fi
 }
 
   SYSTEM_09_BOOTLOADER() {
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
-      sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
-      sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
-      sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+    if [[ "$BOOTLOADER_choice" == "grub" ]]; then
       sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/10_linux 
-      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/20_linux_xen           
-      grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
-      touch grub-pre.cfg
-      cat << EOF | tee -a grub-pre.cfg > /dev/null
+      if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+        sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/10_linux 
+        sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/20_linux_xen  
+        if [[ "$ENCRYPTION_partitions" == "true" ]]; then
+          sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"/GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3\ quiet\ cryptdevice=UUID='"$UUID_1"':cryptroot:allow-discards\ root=\/dev\/mapper\/cryptroot\ cryptkey=rootfs:\/.secret\/crypto_keyfile.bin"/' /etc/default/grub
+          sed -i 's/GRUB_PRELOAD_MODULES="part_gpt part_msdos"/GRUB_PRELOAD_MODULES="part_gpt\ part_msdos\ luks2"/' /etc/default/grub
+          sed -i -e "/GRUB_ENABLE_CRYPTODISK/s/^#//" /etc/default/grub
+          grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
+          touch grub-pre.cfg
+          cat << EOF | tee -a grub-pre.cfg > /dev/null
 
 cryptomount -u $UUID_2 
-
 set root=crypto0
 set prefix=(crypto0)/@/boot/grub
-
 insmod normal
 normal
 
 EOF
-      grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
-      cp /tmp/image /boot/efi/EFI/"$BOOTLOADER_label"/grubx64.efi
-      grub-mkconfig -o /boot/grub/grub.cfg
-      rm -rf {/tmp/image,grub-pre.cfg}
-    elif [[ "$BOOTLOADER_choice" == "grub" ]]; then
-      sed -i 's/#GRUB_BTRFS_GRUB_DIRNAME="\/boot\/grub2"/GRUB_BTRFS_GRUB_DIRNAME="\/efi\/grub"/' /etc/default/grub-btrfs/config
-      sed -i 's/GRUB_GFXMODE="1024x768,800x600"/GRUB_GFXMODE="auto"/' /etc/default/grub
-      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/10_linux 
-      sed -i 's/rootflags=subvol=${rootsubvol}//' /etc/grub.d/20_linux_xen           
-      grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
-      grub-mkconfig -o /boot/grub/grub.cfg
+          grub-mkimage -p '/boot/grub' -O x86_64-efi -c grub-pre.cfg -o /tmp/image luks2 btrfs part_gpt cryptodisk gcry_rijndael pbkdf2 gcry_sha512
+          cp /tmp/image /boot/efi/EFI/"$BOOTLOADER_label"/grubx64.efi
+          grub-mkconfig -o /boot/grub/grub.cfg
+          rm -rf {/tmp/image,grub-pre.cfg}
+        fi
+      elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
+        :
+      fi
+      if ! [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="$BOOTLOADER_label"
+        grub-mkconfig -o /boot/grub/grub.cfg
+      fi
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install
+      if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
+        :
+      elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
+        :
+      fi
+      mkdir -p /etc/pacman.d/hooks
+      touch /etc/pacman.d/hooks/refind.hook
+      cat << EOF | tee -a /etc/pacman.d/hooks/refind.hook > /dev/null
+
+[Trigger]
+Operation=Upgrade
+Type=Package
+Target=refind
+
+[Action]
+Description = Updating rEFInd on ESP
+When=PostTransaction
+Exec=/usr/bin/refind-install
+
+EOF
     fi
 }
 
   SYSTEM_10_MISCELLANEOUS() {
-    cd /install_script || exit
-    cat << EOF | tee -a /etc/pam.d/system-login > /dev/null # 3 seconds delay, when system login failes
+    cat << EOF | tee -a /etc/pam.d/system-login > /dev/null
 auth optional pam_faildelay.so delay="$LOGIN_delay"
 EOF
     if [[ "$INIT_choice" == "openrc" ]]; then
@@ -1400,27 +1415,6 @@ EOF
       sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
       sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
     fi
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      mkdir /etc/pacman.d/hooks
-      touch /etc/pacman.d/hooks/50-bootbackup.hook
-      cat << EOF | tee -a /etc/pacman.d/hooks/50-bootbackup.hook > /dev/null
-
-[Trigger]
-Operation = Upgrade
-Operation = Install
-Operation = Remove
-Type = Path
-Target = usr/lib/modules/*/vmlinuz
-
-[Action]
-Depends = rsync
-Description = Backing up /boot onto snapshot...
-When = PostTransaction
-Exec = /bin/sh -c 'rsync -a --delete /boot /.bootbackup && /.snapshots/btrfs_snapshot.sh boot'
-
-EOF
-  
-   fi   
 }
 
   SYSTEM_11_EXTERNAL_SCRIPT() {
@@ -1440,14 +1434,6 @@ EOF
 }
 
   SCRIPT_12_FAREWELL() {
-    if [[ "$ENCRYPTION_partitions" == "true" ]] && [[ "$FILESYSTEM_primary" == "btrfs" ]] && [[ "$BOOTLOADER_choice" == "grub" ]]; then
-      PRINT_WITH_COLOR yellow "Due to GRUB having limited support for LUKS2, which your partition has been encrypted with, you will enter grub-shell during boot."
-      PRINT_WITH_COLOR yellow "Though since a keyfile has been added to the partition, you only have to unlock the partition once with the following commands: "
-      echo
-      PRINT_WITH_COLOR white "\"cryptomount -a\" # Unlocks the encrypted partition; the reason is that /boot is encrypted too"
-      PRINT_WITH_COLOR white "\"normal\" # Your normal boot"
-      echo
-    fi
     echo
     PRINT_MESSAGE "${messages[12]}" 
     exit
