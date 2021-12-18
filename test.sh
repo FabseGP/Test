@@ -1125,7 +1125,7 @@ EOF
     fi
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       subvolume_path=$(string="${subvolumes[subvolume]}"; echo "${string//@/}")
-      if ! [[ "${subvolumes[subvolume]}" == "@" ]] || [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
+      if ! [[ "${subvolumes[subvolume]}" == "@" ]] || ! [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
         if ! [[ "${subvolumes[subvolume]}" == "grub" ]]; then
           mkdir -p /mnt/"${subvolumes[subvolume]}"
           if [[ "${subvolumes[subvolume]}" == "var/*" ]]; then
@@ -1134,7 +1134,7 @@ EOF
             mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
           fi  
         elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-          mkdir -p /mnt/{boot/{efi,grub}}
+          mkdir -p /mnt/boot/{efi,grub}
           mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
         fi
       fi
