@@ -1168,8 +1168,6 @@ EOF
         REFIND_btrfs="$(ls -- *refind-btrfs*)"
         basestrap -U /mnt $REFIND_btrfs
       fi
-      SNAPPER_package="$(ls -- *snap-pac*)"
-      basestrap -U /mnt $SNAPPER_package
     elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
       if [[ "$BOOTLOADER_choice" == "grub" ]]; then
         basestrap /mnt grub bcachefs-tools
