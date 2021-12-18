@@ -1089,7 +1089,7 @@ EOM
             btrfs subvolume create "/mnt/@/.snapshots"
             mkdir -p /mnt/@/.snapshots/1
           elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
-            btrfs subvolume create "/mnt/@/.snapshots/1/snsapshot"
+            btrfs subvolume create "/mnt/@/.snapshots/1/snapshot"
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
             btrfs subvolume create "/mnt/@/boot/grub"
           else
