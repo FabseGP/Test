@@ -1174,7 +1174,7 @@ EOF
       if [[ "$BOOTLOADER_choice" == "grub" ]]; then
         basestrap /mnt grub bcachefs-tools
       elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-        basestrap /mnt refind btrfs-progs bcachefs-tools
+        basestrap /mnt refind bcachefs-tools
       fi
     fi
 }
@@ -1382,7 +1382,8 @@ EOF
         grub-mkconfig -o /boot/grub/grub.cfg
       fi
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-      refind-install
+      refind-install --usedefault "$DRIVE_path_boot"
+      mkrlconf
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
         :
       elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
