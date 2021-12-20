@@ -1076,7 +1076,7 @@ EOM
   SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
     export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-    export UUID_3$(blkid -s PARTUUID -o value "$DRIVE_path_primary")
+    export UUID_3=$(blkid -s PARTUUID -o value "$DRIVE_path_primary")
     mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
