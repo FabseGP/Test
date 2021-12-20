@@ -1076,7 +1076,6 @@ EOM
   SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
     export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
     export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-    export UUID_3=$(blkid -s PARTUUID -o value "$DRIVE_path_primary")
     mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
@@ -1383,7 +1382,7 @@ EOF
         grub-mkconfig -o /boot/grub/grub.cfg
       fi
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-      refind-install
+      refind-install --alldrivers
       sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/refind/refind.conf	
       sed -i 's/#also_scan_dirs boot,ESP2:EFI\/linux\/kernels/also_scan_dirs + @\/boot/' /boot/efi/EFI/refind/refind.conf	
       sed -i 's/#use_graphics_for osx,linux/use_graphics_for linux/' /boot/efi/EFI/refind/refind.conf
@@ -1396,21 +1395,21 @@ EOF
 include themes/ursamajor-rEFInd/theme.conf
 EOF
       if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-        export microcode="boot\intel-ucode.img"
+        export microcode="intel-ucode.img"
       elif grep -q AMD "/proc/cpuinfo"; then
-        export microcode="boot\amd-ucode.img"
+        export microcode="amd-ucode.img"
       fi
       rm /boot/refind_linux.conf
       touch /boot/refind_linux.conf
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
         cat << EOF >> /boot/refind_linux.conf
-"Boot using default options"     "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+"Boot using default options"     "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rw add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v.img"
+"Boot using fallback initramfs"  "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rw add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v-fallback.img"
 EOF
       else	
         cat << EOF >> /boot/refind_linux.conf
-"Boot using default options"     "root=PARTUUID=$UUID_3 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "root=PARTUUID=$UUID_3 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+"Boot using default options"     "root=UUID=$UUID_1 rw add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v.img"
+"Boot using fallback initramfs"  "root=UUID=$UUID_1 rw add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v-fallback.img"
 EOF
       fi
       mkdir -p /etc/pacman.d/hooks
