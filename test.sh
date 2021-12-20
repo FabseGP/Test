@@ -1055,10 +1055,10 @@ EOM
     fi
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
       if [[ "$BOOTLOADER_choice" == "grub" ]]; then
-        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf=pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
+        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf pbkdf2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
         echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
       elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
-        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
+        echo "$ENCRYPTION_passwd" | cryptsetup luksFormat --batch-mode --type luks2 --pbkdf argon2id --cipher aes-xts-plain64 --key-size 512 --hash sha512 --use-random "$DRIVE_path_primary" # GRUB currently lacks support for ARGON2d
         echo "$ENCRYPTION_passwd" | cryptsetup open "$DRIVE_path_primary" cryptroot
       fi
       mkfs.btrfs -f -L "$PRIMARY_label" /dev/mapper/cryptroot
@@ -1091,7 +1091,9 @@ EOM
           elif [[ "${subvolumes[subvolume]}" == "snapshot" ]]; then
             btrfs subvolume create "/mnt/@/.snapshots/1/snapshot"
           elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-            btrfs subvolume create "/mnt/@/boot/grub"
+            if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+              btrfs subvolume create "/mnt/@/boot/grub"
+            fi
           else
             btrfs subvolume create "/mnt/@/${subvolumes[subvolume]}"
           fi
@@ -1106,7 +1108,6 @@ EOM
     touch /mnt/@/.snapshots/1/info.xml
     date=$(date +"%Y-%m-%d %H:%M:%S")
     cat << EOF | tee -a /mnt/@/.snapshots/1/info.xml > /dev/null
-
 <?xml version="1.0"?>
 <snapshot>
 <type>single</type>
@@ -1114,7 +1115,6 @@ EOM
 	<date>$date</date>
 	<description>First snapshot created at installation</description>
 </snapshot>
-
 EOF
     btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/snapshot" | grep -oP '(?<=ID )[0-9]+') /mnt
     btrfs quota enable /mnt
@@ -1134,8 +1134,12 @@ EOF
             mount -o noatime,compress=zstd,subvol="@/${subvolumes[subvolume]}" "$MOUNTPOINT" /mnt/"$subvolume_path"
           fi  
         elif [[ "${subvolumes[subvolume]}" == "grub" ]]; then
-          mkdir -p /mnt/boot/{efi,grub}
-          mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
+          if [[ "$BOOTLOADER_choice" == "grub" ]]; then
+            mkdir -p /mnt/boot/{efi,grub}
+            mount -o noatime,compress=zstd,subvol="@/boot/grub" "$MOUNTPOINT" /mnt/boot/grub
+          else
+            mkdir -p /mnt/boot/efi
+          fi
         fi
       fi
     done
@@ -1148,8 +1152,8 @@ EOF
     basestrap /mnt $INIT_choice fcron-$INIT_choice dhcpcd-$INIT_choice chrony-$INIT_choice \
                    networkmanager-$INIT_choice seatd-$INIT_choice cryptsetup-$INIT_choice \
 		   pam_rundir lolcat figlet bat cryptsetup libressl vim neovim nano git \
-                   realtime-privileges bc lz4 zstd mkinitcpio rsync efibootmgr os-prober \
-                   base base-devel linux-zen linux-zen-headers snapper snap-pac
+                   realtime-privileges bc lz4 zstd mkinitcpio rsync efibootmgr base \
+                   base-devel linux-zen linux-zen-headers snapper snap-pac
     if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
       basestrap /mnt intel-ucode
     elif grep -q AMD "/proc/cpuinfo"; then
@@ -1162,7 +1166,7 @@ EOF
     fi
     if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
       if [[ "$BOOTLOADER_choice" == "grub" ]]; then
-        basestrap /mnt grub grub-btrfs btrfs-progs
+        basestrap /mnt grub grub-btrfs btrfs-progs os-prober
       elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
         basestrap /mnt refind btrfs-progs
         REFIND_btrfs="$(ls -- *refind-btrfs*)"
@@ -1170,7 +1174,7 @@ EOF
       fi
     elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
       if [[ "$BOOTLOADER_choice" == "grub" ]]; then
-        basestrap /mnt grub bcachefs-tools
+        basestrap /mnt grub bcachefs-tools os-prober
       elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
         basestrap /mnt refind bcachefs-tools
       fi
@@ -1381,12 +1385,28 @@ EOF
       fi
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install --usedefault "$DRIVE_path_boot"
-      mkrlconf
-      if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-        :
-      elif [[ "$FILESYSTEM_primary_bcachefs" == "true" ]]; then
-        :
+      sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/BOOT/refind.conf	
+      sed -i 's/#also_scan_dirs boot,ESP2:EFI\/linux\/kernels/also_scan_dirs + @\/boot/' /boot/efi/EFI/BOOT/refind.conf	
+      touch refind_linux.conf
+      if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
+        microcode="boot\intel-ucode.img"
+      elif grep -q AMD "/proc/cpuinfo"; then
+        microcode="boot\amd-ucode.img"
       fi
+      if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
+        cat << EOF | tee -a refind_linux.conf > /dev/null
+"Boot using default options"     "cryptdevice=UUID=$UUID_1:cryptroot:allow-discards root=\dev\mapper\cryptroot cryptkey=rootfs:\.secret\crypto_keyfile.bin rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
+"Boot using fallback initramfs"  "cryptdevice=UUID=$UUID_1:cryptroot:allow-discards root=\dev\mapper\cryptroot cryptkey=rootfs:\.secret\crypto_keyfile.bin rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+
+EOF
+      else
+        cat << EOF | tee -a refind_linux.conf > /dev/null
+"Boot using default options"     "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
+"Boot using fallback initramfs"  "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+
+EOF
+      fi
+      mv -f refind_linux.conf /boot/refind_linux.conf
       mkdir -p /etc/pacman.d/hooks
       touch /etc/pacman.d/hooks/refind.hook
       cat << EOF | tee -a /etc/pacman.d/hooks/refind.hook > /dev/null
@@ -1414,6 +1434,7 @@ EOF
       sed -i 's/#unicode="NO"/unicode="YES"/g' /etc/rc.conf
       sed -i 's/#rc_depend_strict="YES"/rc_depend_strict="NO"/g' /etc/rc.conf
     fi
+    echo 'PRUNENAMES = ".snapshots"' >> /etc/updatedb.conf ## Prevent snapshots from being indexed
 }
 
   SYSTEM_11_EXTERNAL_SCRIPT() {
