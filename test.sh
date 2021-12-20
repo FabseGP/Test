@@ -1074,10 +1074,9 @@ EOM
 }
 
   SCRIPT_08_CREATE_SUBVOLUMES_AND_MOUNT_PARTITIONS() {
-    if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
-      export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
-      export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
-    fi
+    export UUID_1=$(blkid -s UUID -o value "$DRIVE_path_primary")
+    export UUID_2=$(lsblk -no TYPE,UUID "$DRIVE_path_primary" | awk '$1=="part"{print $2}' | tr -d -)
+    export UUID_3$(blkid -s PARTUUID -o value "$DRIVE_path_primary")
     mount -o noatime,compress=zstd "$MOUNTPOINT" /mnt
     for ((subvolume=0; subvolume<${#subvolumes[@]}; subvolume++)); do
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]]; then
@@ -1387,26 +1386,47 @@ EOF
       refind-install --usedefault "$DRIVE_path_boot"
       sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/BOOT/refind.conf	
       sed -i 's/#also_scan_dirs boot,ESP2:EFI\/linux\/kernels/also_scan_dirs + @\/boot/' /boot/efi/EFI/BOOT/refind.conf	
-      touch refind_linux.conf
+      sed -i 's/#scanfor internal,external,optical,manual/scanfor manual,external/' /boot/efi/EFI/refind/refind.conf
+      mkdir -p /boot/EFI/refind/themes
+      cd /boot/EFI/refind/themes
+      git clone https://github.com/kgoettler/ursamajor-rEFInd.git
       if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
         microcode="boot\intel-ucode.img"
       elif grep -q AMD "/proc/cpuinfo"; then
         microcode="boot\amd-ucode.img"
       fi
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        cat << EOF | tee -a refind_linux.conf > /dev/null
-"Boot using default options"     "cryptdevice=UUID=$UUID_1:cryptroot:allow-discards root=\dev\mapper\cryptroot cryptkey=rootfs:\.secret\crypto_keyfile.bin rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "cryptdevice=UUID=$UUID_1:cryptroot:allow-discards root=\dev\mapper\cryptroot cryptkey=rootfs:\.secret\crypto_keyfile.bin rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+        cat << EOF >> /boot/efi/EFI/refind/refind.conf
+menuentry "Artix Linux" {
+    icon     icon /boot/efi/EFI/refind/themes/ursamajor-rEFInd/icons/os_arch.png
+    volume   "$PRIMARY_label"
+    loader   /boot/vmlinuz-linux-zen
+    initrd   /boot/initramfs-linux-zen.img
+    options  "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw add_efi_memmap initrd=$microcode"
+    submenuentry "Boot using fallback initramfs" {
+        initrd /boot/initramfs-linux-zen-fallback.img
+    }
+}
 
+include themes/ursamajor-rEFInd/theme.conf
 EOF
-      else
-        cat << EOF | tee -a refind_linux.conf > /dev/null
-"Boot using default options"     "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
 
+      else	
+        cat << EOF >> /boot/efi/EFI/refind/refind.conf
+menuentry "Artix Linux" {
+    icon     icon /boot/efi/EFI/refind/themes/ursamajor-rEFInd/icons/os_arch.png
+    volume   "$PRIMARY_label"
+    loader   /boot/vmlinuz-linux-zen
+    initrd   /boot/initramfs-linux-zen.img
+    options  "root=PARTUUID=$UUID_3 rw add_efi_memmap initrd=$microcode"
+    submenuentry "Boot using fallback initramfs" {
+        initrd /boot/initramfs-linux-zen-fallback.img
+    }
+}
+
+include themes/ursamajor-rEFInd/theme.conf
 EOF
       fi
-      mv -f refind_linux.conf /boot/refind_linux.conf
       mkdir -p /etc/pacman.d/hooks
       touch /etc/pacman.d/hooks/refind.hook
       cat << EOF | tee -a /etc/pacman.d/hooks/refind.hook > /dev/null
