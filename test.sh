@@ -1384,22 +1384,24 @@ EOF
       fi
     elif [[ "$BOOTLOADER_choice" == "refind" ]]; then
       refind-install
-      sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/BOOT/refind.conf	
+      sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/refind/refind.conf	
       sed -i 's/#also_scan_dirs boot,ESP2:EFI\/linux\/kernels/also_scan_dirs + @\/boot/' /boot/efi/EFI/refind/refind.conf	
       sed -i 's/#use_graphics_for osx,linux/use_graphics_for linux/' /boot/efi/EFI/refind/refind.conf
       sed -i 's/#scanfor internal,external,optical,manual/scanfor manual,external/' /boot/efi/EFI/refind/refind.conf
       mkdir -p /boot/efi/EFI/refind/themes
-      cd /boot/efi/EFI/BOOT/themes
+      cd /boot/efi/EFI/refind/themes || exit
       git clone https://github.com/kgoettler/ursamajor-rEFInd.git
         cat << EOF >> /boot/efi/EFI/refind/refind.conf
 
 include themes/ursamajor-rEFInd/theme.conf
 EOF
       if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-        microcode="boot\intel-ucode.img"
+        export microcode="boot\intel-ucode.img"
       elif grep -q AMD "/proc/cpuinfo"; then
-        microcode="boot\amd-ucode.img"
+        export microcode="boot\amd-ucode.img"
       fi
+      rm /boot/refind_linux.conf
+      touch /boot/refind_linux.conf
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
         cat << EOF >> /boot/refind_linux.conf
 "Boot using default options"     "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
