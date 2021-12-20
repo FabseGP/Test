@@ -1386,9 +1386,9 @@ EOF
       refind-install --usedefault "$DRIVE_path_boot"
       sed -i 's/#extra_kernel_version_strings linux-lts,linux/extra_kernel_version_strings linux-lts,linux-zen,linux-hardened,linux/' /boot/efi/EFI/BOOT/refind.conf	
       sed -i 's/#also_scan_dirs boot,ESP2:EFI\/linux\/kernels/also_scan_dirs + @\/boot/' /boot/efi/EFI/BOOT/refind.conf	
-      sed -i 's/#scanfor internal,external,optical,manual/scanfor manual,external/' /boot/efi/EFI/refind/refind.conf
-      mkdir -p /boot/EFI/refind/themes
-      cd /boot/EFI/refind/themes
+      sed -i 's/#scanfor internal,external,optical,manual/scanfor manual,external/' /boot/efi/EFI/BOOT/refind.conf
+      mkdir -p /boot/efi/EFI/BOOT/themes
+      cd /boot/efi/EFI/BOOT/themes
       git clone https://github.com/kgoettler/ursamajor-rEFInd.git
       if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
         microcode="boot\intel-ucode.img"
@@ -1396,9 +1396,9 @@ EOF
         microcode="boot\amd-ucode.img"
       fi
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
-        cat << EOF >> /boot/efi/EFI/refind/refind.conf
+        cat << EOF >> /boot/efi/EFI/BOOT/refind.conf
 menuentry "Artix Linux" {
-    icon     icon /boot/efi/EFI/refind/themes/ursamajor-rEFInd/icons/os_arch.png
+    icon     icon /boot/efi/EFI/BOOT/themes/ursamajor-rEFInd/icons/os_arch.png
     volume   "$PRIMARY_label"
     loader   /boot/vmlinuz-linux-zen
     initrd   /boot/initramfs-linux-zen.img
@@ -1412,9 +1412,9 @@ include themes/ursamajor-rEFInd/theme.conf
 EOF
 
       else	
-        cat << EOF >> /boot/efi/EFI/refind/refind.conf
+        cat << EOF >> /boot/efi/EFI/BOOT/refind.conf
 menuentry "Artix Linux" {
-    icon     icon /boot/efi/EFI/refind/themes/ursamajor-rEFInd/icons/os_arch.png
+    icon     icon /boot/efi/EFI/refind/BOOT/ursamajor-rEFInd/icons/os_arch.png
     volume   "$PRIMARY_label"
     loader   /boot/vmlinuz-linux-zen
     initrd   /boot/initramfs-linux-zen.img
