@@ -1395,21 +1395,21 @@ EOF
 include themes/ursamajor-rEFInd/theme.conf
 EOF
       if grep -q Intel "/proc/cpuinfo"; then # Poor soul :(
-        export microcode="boot\intel-ucode.img"
+        export microcode="intel-ucode.img"
       elif grep -q AMD "/proc/cpuinfo"; then
-        export microcode="boot\amd-ucode.img"
+        export microcode="amd-ucode.img"
       fi
       rm /boot/refind_linux.conf
       touch /boot/refind_linux.conf
       if [[ "$FILESYSTEM_primary_btrfs" == "true" ]] && [[ "$ENCRYPTION_partitions" == "true" ]]; then
         cat << EOF >> /boot/refind_linux.conf
-"Boot using default options"     "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "rd.luks.name=$UUID_1=cryptroot root=/dev/mapper/cryptroot rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+"Boot using default options"     "rd.luks.name=$UUID_1=cryptroot rw root=/dev/mapper/cryptroot add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v.img"
+"Boot using fallback initramfs"  "rd.luks.name=$UUID_1=cryptroot rw root=/dev/mapper/cryptroot add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v-fallback.img"
 EOF
       else	
         cat << EOF >> /boot/refind_linux.conf
-"Boot using default options"     "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v.img"
-"Boot using fallback initramfs"  "root=UUID=$UUID_1 rw add_efi_memmap initrd=$microcode initrd=boot\initramfs-%v-fallback.img"
+"Boot using default options"     "root=UUID=$UUID_1 rw rootflags=subvol=@ add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v.img"
+"Boot using fallback initramfs"  "root=UUID=$UUID_1 rw rootflags=subvol=@ add_efi_memmap initrd=/boot/$microcode initrd=/boot/initramfs-%v-fallback.img"
 EOF
       fi
       mkdir -p /etc/pacman.d/hooks
